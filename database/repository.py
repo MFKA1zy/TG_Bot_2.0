@@ -53,6 +53,7 @@ class UserRepository:
                     username = excluded.username,
                     first_name = excluded.first_name,
                     last_name = excluded.last_name,
+                    delivery_blocked = 0,
                     last_activity = excluded.last_activity
                 """,
                 (telegram_id, username, first_name, last_name, language, now, now, now),
@@ -190,7 +191,7 @@ class UserRepository:
             cursor = await db.execute(
                 """
                 SELECT telegram_id FROM users
-                WHERE telegram_id IS NOT NULL AND is_blocked = 0
+                WHERE telegram_id IS NOT NULL AND is_blocked = 0 AND delivery_blocked = 0
                 ORDER BY id
                 """
             )
@@ -205,6 +206,11 @@ class UserRepository:
                 "UPDATE users SET is_blocked = ? WHERE telegram_id = ?",
                 (int(blocked), telegram_id),
             )
+            await db.commit()
+
+    async def set_delivery_blocked(self, telegram_id: int, blocked: bool) -> None:
+        async with aiosqlite.connect(self.db_path) as db:
+            await _execute(db, "UPDATE users SET delivery_blocked = ? WHERE telegram_id = ?", (int(blocked), telegram_id))
             await db.commit()
 
     async def get_captcha_state(self, telegram_id: int) -> dict[str, Any]:

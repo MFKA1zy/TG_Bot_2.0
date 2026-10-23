@@ -13,6 +13,8 @@ def build_admin_menu(language: str | None = None) -> InlineKeyboardMarkup:
     builder.button(text=tr(language, "admin_edit_welcome"), callback_data="admin_edit_welcome")
     builder.button(text=tr(language, "admin_broadcast"), callback_data="admin_broadcast")
     builder.button(text=tr(language, "admin_stats"), callback_data="admin_stats")
+    builder.button(text=tr(language, "cat_categories"), callback_data="acat:categories:0")
+    builder.button(text=tr(language, "cat_trend_period"), callback_data="acat:trend")
     builder.button(text=tr(language, "main_menu"), callback_data="main_menu")
     builder.adjust(1)
     return builder.as_markup()
@@ -52,7 +54,8 @@ def build_admin_series_keyboard(
     items: list[dict], action: str, page: int = 0, page_size: int = 8
 ) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    start = max(page, 0) * page_size
+    page = min(max(page, 0), max(0, (len(items) - 1) // page_size))
+    start = page * page_size
     page_items = items[start : start + page_size]
     callback_prefix = {
         "info": "admin_series_info",
@@ -78,6 +81,8 @@ def build_edit_series_fields(series_id: int) -> InlineKeyboardMarkup:
     builder.button(text=tr(None, "admin_change_title"), callback_data=f"admin_edit_title:{series_id}")
     builder.button(text=tr(None, "admin_change_url"), callback_data=f"admin_edit_url:{series_id}")
     builder.button(text=tr(None, "admin_change_photo"), callback_data=f"admin_edit_photo:{series_id}")
+    for field in ("alternative_titles", "description", "episode_count", "release_status", "category_ids", "episodes", "published_at", "publication_status", "recommended"):
+        builder.button(text=tr(None, "cat_field_" + field), callback_data=f"acat:field:{series_id}:{field}")
     builder.button(text=tr(None, "admin_panel_button"), callback_data="admin_cancel")
     builder.adjust(1)
     return builder.as_markup()

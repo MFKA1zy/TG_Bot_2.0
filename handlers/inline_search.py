@@ -19,6 +19,8 @@ from aiogram.types import (
 from config import settings
 from services.access_service import has_active_subscription
 from database.repository import UserRepository
+from database.catalog_repository import CatalogRepository
+from services.series_cards import render_card
 from services.i18n import detect_language, normalize_language, tr
 from services.series_service import CatalogError, SeriesService
 
@@ -29,8 +31,7 @@ repository = UserRepository()
 INLINE_RESULTS_LIMIT = 50
 
 
-def _format_inline_message(item: dict, language: str = "ru") -> str:
-    title = html.escape(str(item["title"]))
+def _format_inline_message(item: dict, language: str = "ru", categories=None) -> str:
     url = html.escape(str(item["tiktok_url"]), quote=True)
     photo_url = item.get("photo_url")
     poster_link = (
@@ -39,19 +40,21 @@ def _format_inline_message(item: dict, language: str = "ru") -> str:
         else ""
     )
     return (
-        f"🎬 <b>{title}</b>\n\n"
+        render_card(item, categories or [], language) + "\n\n"
         f'<a href="{url}">{tr(language, "inline_tiktok")}</a>'
         f"{poster_link}"
     )
 
 
 def build_inline_results(
-    items: list[dict], language: str = "ru"
+    items: list[dict], language: str = "ru", categories=None
 ) -> list[InlineQueryResult]:
     results: list[InlineQueryResult] = []
     for item in items[:INLINE_RESULTS_LIMIT]:
+        if item.get("publication_status", "published") != "published":
+            continue
         title = str(item["title"])
-        message_text = _format_inline_message(item, language)
+        message_text = _format_inline_message(item, language, categories)
         photo_url = item.get("photo_url")
         link_preview_options = (
             LinkPreviewOptions(
@@ -147,11 +150,23 @@ async def search_inline(inline_query: InlineQuery) -> None:
         await inline_query.answer(results=[], cache_time=0, is_personal=True)
         return
 
-    results = build_inline_results(items, language)
-    if not results:
+    items = [item for item in items if item.get("publication_status", "published") == "published"]
+    try:
+        raw_offset = getattr(inline_query, "offset", "") or "0"
+        if not raw_offset.isdigit() or len(raw_offset) > 9:
+            raise ValueError("offset")
+        offset = int(raw_offset)
+    except ValueError:
+        await inline_query.answer(results=[], cache_time=0, is_personal=True)
+        return
+    page_items = items[offset:offset + INLINE_RESULTS_LIMIT]
+    categories = await CatalogRepository().categories() if any(item.get("category_ids") for item in page_items) else []
+    results = build_inline_results(page_items, language, categories)
+    if not results and not offset:
         results = [_info_result(tr(language, "inline_no_results"))]
     await inline_query.answer(
         results=results,
         cache_time=0,
         is_personal=True,
+        next_offset=str(offset + INLINE_RESULTS_LIMIT) if offset + INLINE_RESULTS_LIMIT < len(items) else "",
     )

@@ -139,7 +139,7 @@ async def _run_broadcast(
 
     async def mark_blocked(user_id: int) -> None:
         try:
-            await repository.set_user_blocked(user_id, True)
+            await repository.set_delivery_blocked(user_id, True)
         except aiosqlite.Error:
             logger.exception("Could not record blocked-user status for %s.", user_id)
 

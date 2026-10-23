@@ -34,10 +34,14 @@ async def main() -> None:
     from services.storage import prepare_storage
 
     prepare_storage()
+    from services.series_service import SeriesService
+
+    SeriesService().migrate_catalog()
     from handlers import captcha as captcha_handlers
     from handlers import inline_search as inline_search_handlers
     from handlers import start as start_handlers
     from handlers.admin import admin_router
+    from handlers.catalog import router as catalog_router
 
     configure_logging()
     if not settings.BOT_TOKEN:
@@ -102,6 +106,7 @@ async def main() -> None:
     dp.include_router(start_handlers.router)
     dp.include_router(captcha_handlers.router)
     dp.include_router(inline_search_handlers.router)
+    dp.include_router(catalog_router)
     dp.include_router(admin_router)
 
     try:

@@ -63,7 +63,13 @@ async def replace_with_text(
                 )
             )
         return _track(await message.answer(text, reply_markup=reply_markup))
-    return _track(await message.edit_text(text, reply_markup=reply_markup))
+    try:
+        response = await message.edit_text(text, reply_markup=reply_markup)
+    except TelegramBadRequest as exc:
+        if "message is not modified" not in str(exc).lower():
+            raise
+        return _track(message)
+    return _track(response)
 
 
 async def edit_text_or_caption(

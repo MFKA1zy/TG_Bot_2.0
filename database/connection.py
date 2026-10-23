@@ -40,7 +40,7 @@ async def init_db(db_path: str | Path | None = None) -> None:
         existing_user_columns = {row[1] for row in await cursor.fetchall()}
         await cursor.close()
         if existing_user_columns and not {
-            "language", "is_subscribed", "subscription_checked_at"
+            "language", "is_subscribed", "subscription_checked_at", "delivery_blocked"
         }.issubset(existing_user_columns):
             await _backup_database(db, database_path)
         cursor = await db.execute(
@@ -75,6 +75,7 @@ async def init_db(db_path: str | Path | None = None) -> None:
                 last_activity TEXT,
                 is_blocked INTEGER DEFAULT 0,
                 is_subscribed INTEGER DEFAULT 0,
+                delivery_blocked INTEGER NOT NULL DEFAULT 0,
                 subscription_checked_at TEXT
             )
             """
@@ -82,6 +83,8 @@ async def init_db(db_path: str | Path | None = None) -> None:
         cursor = await db.execute("PRAGMA table_info(users)")
         user_columns = {row[1] for row in await cursor.fetchall()}
         await cursor.close()
+        if "delivery_blocked" not in user_columns:
+            await _execute(db, "ALTER TABLE users ADD COLUMN delivery_blocked INTEGER NOT NULL DEFAULT 0")
         if "language" not in user_columns:
             await _execute(db, "ALTER TABLE users ADD COLUMN language TEXT")
         if "is_subscribed" not in user_columns:
@@ -150,4 +153,7 @@ async def init_db(db_path: str | Path | None = None) -> None:
             )
             """
         )
+        from database.catalog_repository import create_catalog_tables
+
+        await create_catalog_tables(db)
         await db.commit()
