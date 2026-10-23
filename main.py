@@ -33,20 +33,21 @@ def configure_logging() -> None:
 async def main() -> None:
     from services.storage import prepare_storage
 
-    prepare_storage()
+    if not settings.BOT_TOKEN:
+        raise RuntimeError("BOT_TOKEN is missing. Fill in the .env file before starting the bot.")
+    await asyncio.to_thread(prepare_storage)
     from services.series_service import SeriesService
 
-    SeriesService().migrate_catalog()
+    startup_catalog = await asyncio.to_thread(SeriesService)
+    await asyncio.to_thread(startup_catalog.migrate_catalog)
     from handlers import captcha as captcha_handlers
     from handlers import inline_search as inline_search_handlers
     from handlers import start as start_handlers
     from handlers.admin import admin_router
     from handlers.catalog import router as catalog_router
+    from handlers.reviews import router as reviews_router
 
     configure_logging()
-    if not settings.BOT_TOKEN:
-        raise RuntimeError("BOT_TOKEN is missing. Fill in the .env file before starting the bot.")
-
     await init_db()
 
     bot_session = AiohttpSession(
@@ -107,6 +108,7 @@ async def main() -> None:
     dp.include_router(captcha_handlers.router)
     dp.include_router(inline_search_handlers.router)
     dp.include_router(catalog_router)
+    dp.include_router(reviews_router)
     dp.include_router(admin_router)
 
     try:

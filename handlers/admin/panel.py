@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import hmac
 import logging
 from datetime import datetime, timedelta, timezone
@@ -14,6 +16,7 @@ from database.repository import UserRepository
 from keyboards.inline.admin_menu import build_admin_menu
 from services.message_service import message_service
 from services.i18n import normalize_language, tr
+from services.i18n import get_update_user
 from services.series_service import CatalogError, SeriesService
 from states.admin import AdminStates
 from utils.telegram import replace_with_text
@@ -29,7 +32,7 @@ def _sender_id(event: Message | CallbackQuery) -> int:
 
 
 async def get_admin_language(event: Message | CallbackQuery) -> str:
-    user = await repository.get_user_by_telegram_id(_sender_id(event))
+    user = await get_update_user(_sender_id(event), repository)
     return normalize_language(user.language if user else None)
 
 
@@ -48,7 +51,7 @@ async def ensure_admin(event: Message | CallbackQuery) -> bool:
                 show_alert=True,
             )
         return False
-    user = await repository.get_user_by_telegram_id(_sender_id(event))
+    user = await get_update_user(_sender_id(event), repository)
     if user and user.is_admin:
         return True
     if isinstance(event, Message):
@@ -184,7 +187,7 @@ async def admin_panel(message: Message, state: FSMContext) -> None:
     if not await ensure_admin(message):
         return
     await state.clear()
-    message_service.track_user_message(message.chat.id, message.message_id)
+    await asyncio.to_thread(message_service.track_user_message, message.chat.id, message.message_id)
     await message_service.safe_delete_user_message(
         message.bot,
         message.chat.id,
@@ -194,7 +197,7 @@ async def admin_panel(message: Message, state: FSMContext) -> None:
         tr(await get_admin_language(message), "admin_title"),
         reply_markup=build_admin_menu(await get_admin_language(message)),
     )
-    message_service.track_message(response.chat.id, response.message_id)
+    await asyncio.to_thread(message_service.track_message, response.chat.id, response.message_id)
 
 
 @router.callback_query(F.data == "admin_panel")
@@ -211,7 +214,7 @@ async def admin_panel_callback(
         tr(language, "admin_title"),
         reply_markup=build_admin_menu(language),
     )
-    message_service.track_message(response.chat.id, response.message_id)
+    await asyncio.to_thread(message_service.track_message, response.chat.id, response.message_id)
 
 
 @router.callback_query(F.data == "admin_stats")
@@ -222,7 +225,7 @@ async def admin_stats(callback: CallbackQuery) -> None:
     language = await get_admin_language(callback)
     stats = await repository.get_stats()
     try:
-        series_count = series_service.count_series()
+        series_count = await asyncio.to_thread(series_service.count_series)
     except CatalogError:
         logger.exception("Catalog unavailable while generating admin statistics.")
         await replace_with_text(
@@ -245,6 +248,9 @@ async def admin_stats(callback: CallbackQuery) -> None:
             broadcasts=stats["broadcasts"],
         )
     )
+    from database.reviews_repository import ReviewsRepository
+
+    text += "\n\n" + tr(language, "rv_stats", **await ReviewsRepository(repository.db_path).stats())
     await replace_with_text(
         callback.message, text, reply_markup=build_admin_menu(language)
     )
@@ -273,16 +279,13 @@ async def cancel_admin_operation(
             tr(language, "admin_title"),
             reply_markup=build_admin_menu(language),
         )
-    message_service.track_message(
-        response_message.chat.id,
-        response_message.message_id,
-    )
+    await asyncio.to_thread(message_service.track_message, response_message.chat.id, response_message.message_id)
 
 
 @router.message(Command("cancel"))
 async def cancel_operation(message: Message, state: FSMContext) -> None:
     await state.clear()
-    message_service.track_user_message(message.chat.id, message.message_id)
+    await asyncio.to_thread(message_service.track_user_message, message.chat.id, message.message_id)
     await message_service.clear_chat(message.bot, message.chat.id)
     user = await repository.get_user_by_telegram_id(message.from_user.id)
     language = normalize_language(user.language if user else None)
@@ -293,4 +296,4 @@ async def cancel_operation(message: Message, state: FSMContext) -> None:
         )
     else:
         response = await message.answer(tr(language, "admin_cancelled"))
-    message_service.track_message(response.chat.id, response.message_id)
+    await asyncio.to_thread(message_service.track_message, response.chat.id, response.message_id)

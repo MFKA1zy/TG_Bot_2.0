@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import html
 import json
 
@@ -107,12 +109,12 @@ async def admin_catalog_callback(callback: CallbackQuery, state: FSMContext):
                     raise ValueError("category")
             if action == "field":
                 series_id, field = int(parts[2]), parts[3]
-                if field not in FIELDS or not catalog.series.get_series_by_id(series_id):
+                if field not in FIELDS or not await asyncio.to_thread(catalog.series.get_series_by_id, series_id):
                     raise ValueError("field")
                 data.update(series_id=series_id, field=field)
                 back = f"admin_select_edit:{series_id}"
                 text = tr(None, "cat_prompt_" + field)
-                item = catalog.series.get_series_by_id(series_id)
+                item = await asyncio.to_thread(catalog.series.get_series_by_id, series_id)
                 text += "\n\n" + html.escape(json.dumps(item[field], ensure_ascii=False)[:1000])
                 if field == "category_ids":
                     text += "\n\n" + "\n".join(f"{row['id']}: {html.escape(row['name'])}" for row in await catalog.repository.categories())[:2500]

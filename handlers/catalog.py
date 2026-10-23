@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import asyncio
+
 from aiogram import F, Router
 from aiogram.types import CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from database.repository import UserRepository
 from services.access_service import has_active_subscription
+from services.access_service import authorize
 from services.catalog_service import CatalogService, SECTIONS
 from services.i18n import normalize_language, tr
 from services.series_cards import show_card
@@ -22,24 +25,7 @@ def back_button(builder, language, target="cat:home"):
 
 
 async def authorized(callback: CallbackQuery) -> str | None:
-    user = await users.get_user_by_telegram_id(callback.from_user.id)
-    language = normalize_language(user.language if user else None)
-    if not callback.message or callback.message.chat.type != "private":
-        await callback.answer()
-        return None
-    if user and user.is_blocked:
-        await callback.answer(tr(language, "access_blocked"), show_alert=True)
-        return None
-    if not user or not user.language or not user.captcha_passed:
-        await callback.answer(tr(language, "inline_captcha_required"), show_alert=True)
-        return None
-    if not await has_active_subscription(callback.bot, callback.from_user.id):
-        from handlers.start import show_subscription_required
-
-        await callback.answer()
-        await show_subscription_required(callback)
-        return None
-    return language
+    return await authorize(callback, users, has_active_subscription)
 
 
 def context(parts: list[str], start: int = 0) -> tuple[str, int, int]:
@@ -54,7 +40,8 @@ async def list_page(callback, language, section, page, category_id):
     builder = InlineKeyboardBuilder()
     suffix = f"{section}:{result.page}:{category_id}"
     for item in result.items:
-        builder.button(text=item["title"][:60], callback_data=f"cat:card:{item['id']}:{suffix}")
+        rating = f" · {item['average']:.1f}/10" if item.get("votes") else ""
+        builder.button(text=item["title"][:48] + rating, callback_data=f"cat:card:{item['id']}:{suffix}")
     if result.page:
         builder.button(text="‹", callback_data=f"cat:list:{section}:{result.page - 1}:{category_id}")
     if result.page + 1 < result.pages:
@@ -68,12 +55,13 @@ async def list_page(callback, language, section, page, category_id):
 
 
 async def card(callback, language, series_id, section, page, category_id):
-    item = catalog.published(series_id)
+    item = await asyncio.to_thread(catalog.published, series_id)
     if not item:
         await list_page(callback, language, section, page, category_id)
         return
-    favorite = series_id in await catalog.repository.favorite_ids(callback.from_user.id)
-    watched = series_id in await catalog.repository.viewed_ids(callback.from_user.id)
+    info, categories = await asyncio.gather(catalog.repository.card_state(callback.from_user.id, series_id), catalog.repository.categories())
+    favorite, watched = info["favorite"], info["watched"]
+    item.update(info)
     suffix = f"{section}:{page}:{category_id}"
     builder = InlineKeyboardBuilder()
     if item["episodes"]:
@@ -83,10 +71,12 @@ async def card(callback, language, series_id, section, page, category_id):
     builder.button(text=tr(language, "cat_unfavorite" if favorite else "cat_favorite"), callback_data=f"cat:fav:{series_id}:{int(not favorite)}:{suffix}")
     if not watched:
         builder.button(text=tr(language, "cat_mark_viewed"), callback_data=f"cat:view:{series_id}:{suffix}")
+    builder.button(text=tr(language, "rv_rate"), callback_data=f"rev:rate:{series_id}:{suffix}")
+    builder.button(text=tr(language, "rv_read"), callback_data=f"rev:list:{series_id}:0:{suffix}")
+    builder.button(text=tr(language, "rv_write"), callback_data=f"rev:write:{series_id}:{suffix}")
     back_button(builder, language, f"cat:list:{suffix}")
     builder.adjust(1)
-    counts = await catalog.repository.view_counts()
-    await show_card(callback.message, item, await catalog.repository.categories(), language, builder.as_markup(), counts.get(series_id, (0, 0))[0])
+    await show_card(callback.message, item, categories, language, builder.as_markup(), info["views"])
 
 
 @router.callback_query(F.data.startswith("cat:"))
@@ -94,7 +84,6 @@ async def catalog_callback(callback: CallbackQuery) -> None:
     language = await authorized(callback)
     if language is None:
         return
-    await callback.answer()
     parts = callback.data.split(":")
     action = parts[1]
     try:
@@ -131,7 +120,7 @@ async def catalog_callback(callback: CallbackQuery) -> None:
             await catalog.set_favorite(callback.from_user.id, int(parts[2]), parts[3] == "1")
             await card(callback, language, int(parts[2]), *context(parts, 4))
         elif action == "view":
-            if not catalog.published(int(parts[2])):
+            if not await asyncio.to_thread(catalog.published, int(parts[2])):
                 raise ValueError("unavailable")
             section, page, category_id = context(parts, 3)
             builder = InlineKeyboardBuilder()
@@ -143,7 +132,7 @@ async def catalog_callback(callback: CallbackQuery) -> None:
             await catalog.confirm_view(callback.from_user.id, int(parts[2]))
             await card(callback, language, int(parts[2]), *context(parts, 3))
         elif action == "watch":
-            item = catalog.published(int(parts[2]))
+            item = await asyncio.to_thread(catalog.published, int(parts[2]))
             if not item:
                 raise ValueError("unavailable")
             section, page, category_id = context(parts, 4)

@@ -50,7 +50,7 @@ async def _update_broadcast_prompt(
         )
     else:
         response = await message.answer(text, reply_markup=reply_markup)
-        message_service.track_message(response.chat.id, response.message_id)
+        await asyncio.to_thread(message_service.track_message, response.chat.id, response.message_id)
     await state.update_data(active_prompt_message_id=response.message_id)
     return response
 
@@ -77,7 +77,7 @@ async def receive_broadcast_text(message: Message, state: FSMContext) -> None:
         await state.clear()
         return
     text = (message.text or "").strip()
-    message_service.track_user_message(message.chat.id, message.message_id)
+    await asyncio.to_thread(message_service.track_user_message, message.chat.id, message.message_id)
     await message_service.safe_delete_user_message(
         message.bot,
         message.chat.id,

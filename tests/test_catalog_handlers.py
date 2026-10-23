@@ -15,6 +15,9 @@ import handlers.catalog as ui
 import handlers.admin.catalog as admin_ui
 import handlers.admin.panel as admin_panel
 import handlers.inline_search as inline
+import handlers.reviews as reviews_ui
+import handlers.admin.reviews as moderation_ui
+from services.reviews_service import ReviewsService
 import database.repository as user_repository_module
 from database.repository import UserRepository
 from services.access_middleware import BlockedUserMiddleware
@@ -62,8 +65,12 @@ async def app(tmp_path, monkeypatch):
     monkeypatch.setattr(ui, "users", users)
     monkeypatch.setattr(admin_ui, "catalog", catalog)
     monkeypatch.setattr(admin_panel, "repository", users)
+    review_service = ReviewsService(catalog)
+    monkeypatch.setattr(reviews_ui, "service", review_service)
+    monkeypatch.setattr(moderation_ui, "service", review_service)
     subscription = AsyncMock(return_value=True)
     monkeypatch.setattr(ui, "has_active_subscription", subscription)
+    monkeypatch.setattr("services.access_service.has_active_subscription", subscription)
     monkeypatch.setattr(message_service, "track_message", lambda *args: None)
     monkeypatch.setattr(message_service, "safe_delete", AsyncMock())
     session = TelegramSession()
@@ -74,7 +81,11 @@ async def app(tmp_path, monkeypatch):
     router = Router()
     router.callback_query.register(ui.catalog_callback, F.data.startswith("cat:"))
     router.callback_query.register(admin_ui.admin_catalog_callback, F.data.startswith("acat:"))
+    router.callback_query.register(reviews_ui.review_callback, F.data.startswith("rev:"))
+    router.callback_query.register(moderation_ui.moderation_callback, F.data.startswith("mod:"))
     router.message.register(admin_ui.admin_catalog_input, admin_ui.CatalogAdminStates.input)
+    router.message.register(reviews_ui.review_text, reviews_ui.ReviewStates.text)
+    router.message.register(moderation_ui.moderation_input, moderation_ui.ModerationStates.input)
     dp.include_router(router)
     counter = 0
 

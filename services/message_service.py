@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -141,7 +142,7 @@ class MessageService:
         except TelegramBadRequest as exc:
             error_text = str(exc).lower()
             if "message to delete not found" in error_text:
-                self._discard(messages_by_chat, chat_id, message_id)
+                await asyncio.to_thread(self._discard, messages_by_chat, chat_id, message_id)
                 return True
             if "message can't be deleted" in error_text:
                 logger.warning(
@@ -150,7 +151,7 @@ class MessageService:
                     message_id,
                     chat_id,
                 )
-                self._discard(messages_by_chat, chat_id, message_id)
+                await asyncio.to_thread(self._discard, messages_by_chat, chat_id, message_id)
                 return False
             logger.warning(
                 "Could not delete %s message %s in chat %s; it will be retried.",
@@ -177,9 +178,9 @@ class MessageService:
                 message_id,
                 chat_id,
             )
-            self._discard(messages_by_chat, chat_id, message_id)
+            await asyncio.to_thread(self._discard, messages_by_chat, chat_id, message_id)
             return False
-        self._discard(messages_by_chat, chat_id, message_id)
+        await asyncio.to_thread(self._discard, messages_by_chat, chat_id, message_id)
         return True
 
     async def safe_delete(self, bot: Bot, chat_id: int, message_id: int) -> bool:

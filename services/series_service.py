@@ -17,6 +17,7 @@ from utils.text import normalize_query, normalize_text
 _CATALOG_LOCK = threading.RLock()
 MAX_TITLE_LENGTH = 256
 MAX_URL_LENGTH = 2048
+_SNAPSHOTS: dict[str, tuple[tuple, dict]] = {}
 
 
 class CatalogError(RuntimeError):
@@ -31,6 +32,8 @@ class SeriesService:
             else settings.SERIES_PATH
         )
         self._lock = _CATALOG_LOCK
+        self._search_cache: dict[tuple, list[dict]] = {}
+        self._search_snapshot = None
         self._ensure_catalog()
 
     def _ensure_catalog(self) -> None:
@@ -58,6 +61,16 @@ class SeriesService:
         return backup_path
 
     def _load_catalog(self) -> dict:
+        # Internal snapshots are immutable. Public methods return independent copies.
+        try:
+            stat = self.catalog_path.stat()
+        except OSError as exc:
+            raise CatalogError("Could not stat series catalog") from exc
+        fingerprint = (stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size, stat.st_ino)
+        cache_key = str(self.catalog_path.resolve())
+        cached = _SNAPSHOTS.get(cache_key)
+        if cached and cached[0] == fingerprint:
+            return cached[1]
         try:
             payload = json.loads(self.catalog_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, UnicodeDecodeError) as exc:
@@ -135,7 +148,11 @@ class SeriesService:
         if type(next_id) is not int or next_id <= highest:
             self._backup_corrupt_catalog()
             raise CatalogError("Invalid catalog next_id")
-        return {**payload, "series": [with_defaults({**item, "id": int(item["id"])}) for item in items], "next_id": next_id}
+        result = {**payload, "series": [with_defaults({**item, "id": int(item["id"])}) for item in items], "next_id": next_id}
+        if len(_SNAPSHOTS) >= 128:
+            _SNAPSHOTS.clear()
+        _SNAPSHOTS[cache_key] = (fingerprint, result)
+        return result
 
     def _write_atomic(self, payload: dict) -> None:
         temp_path = self.catalog_path.with_name(
@@ -148,6 +165,8 @@ class SeriesService:
                 file.flush()
                 os.fsync(file.fileno())
             os.replace(temp_path, self.catalog_path)
+            _SNAPSHOTS.pop(str(self.catalog_path.resolve()), None)
+            self._search_cache.clear()
         except OSError as exc:
             try:
                 temp_path.unlink(missing_ok=True)
@@ -169,10 +188,12 @@ class SeriesService:
             self._write_atomic({**payload, "schema_version": 2})
 
     def get_series_by_id(self, series_id: int) -> dict | None:
-        for item in self.list_series():
+        with self._lock:
+            items = self._load_catalog()["series"]
+        for item in items:
             try:
                 if int(item.get("id", -1)) == int(series_id):
-                    return item
+                    return copy.deepcopy(item)
             except (TypeError, ValueError):
                 continue
         return None
@@ -220,12 +241,25 @@ class SeriesService:
         return normalize_query(title)
 
     def search_series(self, query: str) -> list[dict]:
+        with self._lock:
+            snapshot = self._load_catalog()
+            if self._search_snapshot is not snapshot:
+                self._search_cache.clear()
+                self._search_snapshot = snapshot
+            key = self._normalize_title(query)
+            if key not in self._search_cache:
+                if len(self._search_cache) >= 128:
+                    self._search_cache.clear()
+                self._search_cache[key] = self._search_series(query, snapshot["series"])
+            return copy.deepcopy(self._search_cache[key])
+
+    def _search_series(self, query: str, snapshot: list[dict]) -> list[dict]:
         normalized_query = self._normalize_title(query)
         if not normalized_query:
             return []
 
         matches: list[tuple[int, dict]] = []
-        items = [item for item in self.list_series() if item.get("publication_status", "published") == "published"]
+        items = [item for item in snapshot if item.get("publication_status", "published") == "published"]
         for item in items:
             names = [self._normalize_title(str(name)) for name in [item["title"], *item.get("alternative_titles", [])]]
             if normalized_query in names:

@@ -15,6 +15,7 @@ def build_admin_menu(language: str | None = None) -> InlineKeyboardMarkup:
     builder.button(text=tr(language, "admin_stats"), callback_data="admin_stats")
     builder.button(text=tr(language, "cat_categories"), callback_data="acat:categories:0")
     builder.button(text=tr(language, "cat_trend_period"), callback_data="acat:trend")
+    builder.button(text=tr(language, "rv_admin"), callback_data="mod:home")
     builder.button(text=tr(language, "main_menu"), callback_data="main_menu")
     builder.adjust(1)
     return builder.as_markup()

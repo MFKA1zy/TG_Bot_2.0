@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import html
 import logging
 
@@ -22,6 +24,7 @@ from database.repository import UserRepository
 from database.catalog_repository import CatalogRepository
 from services.series_cards import render_card
 from services.i18n import detect_language, normalize_language, tr
+from services.i18n import get_update_user
 from services.series_service import CatalogError, SeriesService
 
 logger = logging.getLogger(__name__)
@@ -109,7 +112,7 @@ def _info_result(text: str) -> InlineQueryResultArticle:
 @router.inline_query()
 async def search_inline(inline_query: InlineQuery) -> None:
     telegram_language = detect_language(inline_query.from_user.language_code)
-    user = await repository.get_user_by_telegram_id(inline_query.from_user.id)
+    user = await get_update_user(inline_query.from_user.id, repository)
     language = normalize_language(
         user.language
         if user and user.language
@@ -141,9 +144,9 @@ async def search_inline(inline_query: InlineQuery) -> None:
     query = inline_query.query.strip()
     try:
         items = (
-            series_service.search_series(query)
+            await asyncio.to_thread(series_service.search_series, query)
             if query
-            else series_service.list_series()
+            else await asyncio.to_thread(series_service.list_series)
         )
     except CatalogError:
         logger.exception("Series catalog could not be searched inline.")

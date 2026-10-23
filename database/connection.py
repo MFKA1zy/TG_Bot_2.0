@@ -39,10 +39,18 @@ async def init_db(db_path: str | Path | None = None) -> None:
         cursor = await db.execute("PRAGMA table_info(users)")
         existing_user_columns = {row[1] for row in await cursor.fetchall()}
         await cursor.close()
-        if existing_user_columns and not {
+        async with db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema_migrations'") as cursor:
+            has_versions = await cursor.fetchone() is not None
+        phase3_installed = False
+        if has_versions:
+            async with db.execute("SELECT 1 FROM schema_migrations WHERE version=3") as cursor:
+                phase3_installed = await cursor.fetchone() is not None
+        backup_taken = False
+        if existing_user_columns and (not phase3_installed or not {
             "language", "is_subscribed", "subscription_checked_at", "delivery_blocked"
-        }.issubset(existing_user_columns):
+        }.issubset(existing_user_columns)):
             await _backup_database(db, database_path)
+            backup_taken = True
         cursor = await db.execute(
             "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'broadcast_history'"
         )
@@ -53,7 +61,7 @@ async def init_db(db_path: str | Path | None = None) -> None:
             columns = {row[1] for row in await cursor.fetchall()}
             await cursor.close()
             required_columns = {"status", "processed_count", "cancelled"}
-            if not required_columns.issubset(columns):
+            if not required_columns.issubset(columns) and not backup_taken:
                 await _backup_database(db, database_path)
 
         cursor = await db.execute("PRAGMA journal_mode=WAL;")
@@ -156,4 +164,7 @@ async def init_db(db_path: str | Path | None = None) -> None:
         from database.catalog_repository import create_catalog_tables
 
         await create_catalog_tables(db)
+        from database.reviews_schema import create_reviews_tables
+
+        await create_reviews_tables(db)
         await db.commit()

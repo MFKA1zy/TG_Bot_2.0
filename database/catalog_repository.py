@@ -37,6 +37,19 @@ class CatalogRepository:
     def __init__(self, db_path=None):
         self.db_path = str(db_path or settings.DB_PATH)
 
+    async def card_state(self, user_id: int, series_id: int) -> dict:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("""SELECT
+                EXISTS(SELECT 1 FROM favorites WHERE user_id=? AND series_id=?) AS favorite,
+                EXISTS(SELECT 1 FROM confirmed_views WHERE user_id=? AND series_id=?) AS watched,
+                (SELECT COUNT(*) FROM confirmed_views WHERE series_id=?) AS views,
+                (SELECT COALESCE(AVG(score),0) FROM ratings WHERE series_id=?) AS average,
+                (SELECT COUNT(*) FROM ratings WHERE series_id=?) AS votes,
+                (SELECT score FROM ratings WHERE user_id=? AND series_id=?) AS own""",
+                (user_id,series_id,user_id,series_id,series_id,series_id,series_id,user_id,series_id)) as cursor:
+                return dict(await cursor.fetchone())
+
     async def categories(self) -> list[dict]:
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row

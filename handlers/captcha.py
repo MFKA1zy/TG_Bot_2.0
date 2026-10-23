@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -41,7 +43,7 @@ def _is_blocked(blocked_until: str | None) -> bool:
 
 async def _send_and_track(message: Message, text: str, **kwargs) -> Message:
     response = await message.answer(text, **kwargs)
-    message_service.track_message(response.chat.id, response.message_id)
+    await asyncio.to_thread(message_service.track_message, response.chat.id, response.message_id)
     return response
 
 
@@ -69,7 +71,7 @@ async def start_captcha(message: Message, state: FSMContext) -> None:
     if captcha_state.get("attempts", 0) >= 5:
         await repository.reset_captcha_state(message.chat.id)
 
-    challenge = captcha_service.get_challenge()
+    challenge = await asyncio.to_thread(captcha_service.get_challenge)
     if challenge is None:
         logger.error("CAPTCHA challenge unavailable; check image and answer files.")
         await state.clear()
@@ -96,7 +98,7 @@ async def start_captcha(message: Message, state: FSMContext) -> None:
         )
         return
 
-    message_service.track_message(message.chat.id, response.message_id)
+    await asyncio.to_thread(message_service.track_message, message.chat.id, response.message_id)
     await state.set_state(CaptchaStates.waiting_for_answer)
     await state.update_data(
         image_file=challenge["image_file"],
@@ -105,7 +107,7 @@ async def start_captcha(message: Message, state: FSMContext) -> None:
 
 @router.message(F.chat.type == "private", CaptchaStates.waiting_for_answer)
 async def process_captcha(message: Message, state: FSMContext) -> None:
-    message_service.track_user_message(message.chat.id, message.message_id)
+    await asyncio.to_thread(message_service.track_user_message, message.chat.id, message.message_id)
     previous_feedback_id = (await state.get_data()).get("feedback_message_id")
     if isinstance(previous_feedback_id, int):
         await message_service.safe_delete(
@@ -148,7 +150,7 @@ async def process_captcha(message: Message, state: FSMContext) -> None:
         return
 
     answer = message.text or ""
-    if captcha_service.validate(image_file, answer):
+    if await asyncio.to_thread(captcha_service.validate, image_file, answer):
         await repository.set_captcha_passed(message.from_user.id, True)
         await repository.reset_captcha_state(message.from_user.id)
         await state.clear()

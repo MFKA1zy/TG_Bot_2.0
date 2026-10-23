@@ -1,0 +1,36 @@
+{
+  "environment": "local Windows/Python; 1000 series; temporary SQLite; no Telegram network",
+  "repeats": 40,
+  "catalog_read": {
+    "median_ms": 28.381,
+    "p95_ms": 37.158
+  },
+  "inline_exact_search": {
+    "median_ms": 33.76,
+    "p95_ms": 137.523
+  },
+  "card_storage_render": {
+    "median_ms": 55.093,
+    "p95_ms": 67.1
+  },
+  "new_page": {
+    "median_ms": 31.568,
+    "p95_ms": 141.487
+  },
+  "sqlite_view_counts": {
+    "median_ms": 8.111,
+    "p95_ms": 12.957
+  },
+  "subscription_synthetic": {
+    "synthetic_rtt_ms": 10,
+    "simultaneous_checks": 16,
+    "api_requests": 16,
+    "batch_ms": 14.953
+  },
+  "callback_dispatch_synthetic": {
+    "median_ms": 63.037,
+    "p95_ms": 88.948,
+    "ack_median_ms": 21.339,
+    "subscription_synthetic_rtt_ms": 10
+  }
+}

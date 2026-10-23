@@ -12,7 +12,7 @@ from keyboards.inline.user_menu import (
 def test_admin_menu_buttons_are_one_per_row():
     keyboard = build_admin_menu()
 
-    assert len(keyboard.inline_keyboard) == 10
+    assert len(keyboard.inline_keyboard) == 11
     assert all(len(row) == 1 for row in keyboard.inline_keyboard)
     assert [row[0].callback_data for row in keyboard.inline_keyboard] == [
         "admin_add_series",
@@ -24,6 +24,7 @@ def test_admin_menu_buttons_are_one_per_row():
         "admin_stats",
         "acat:categories:0",
         "acat:trend",
+        "mod:home",
         "main_menu",
     ]
 

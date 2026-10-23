@@ -10,6 +10,19 @@ from aiogram import BaseMiddleware
 SUPPORTED_LANGUAGES = ("ru", "uk", "en")
 _LOCALE_DIR = Path(__file__).resolve().parent.parent / "locales"
 _CURRENT_LANGUAGE: ContextVar[str] = ContextVar("current_language", default="ru")
+_UPDATE_USER: ContextVar[tuple | None] = ContextVar("update_user", default=None)
+
+
+async def get_update_user(user_id: int, repository=None):
+    """Reuse one snapshot only within this update; no inter-update access cache."""
+    snapshot = _UPDATE_USER.get()
+    if snapshot is not None and snapshot[0] == user_id:
+        return snapshot[1]
+    if repository is None:
+        from database.repository import UserRepository
+
+        repository = UserRepository()
+    return await repository.get_user_by_telegram_id(user_id)
 
 
 def normalize_language(language: str | None) -> str:
@@ -62,7 +75,9 @@ class LocaleMiddleware(BaseMiddleware):
             else detect_language(getattr(from_user, "language_code", None))
         )
         token = _CURRENT_LANGUAGE.set(normalize_language(selected))
+        user_token = _UPDATE_USER.set((from_user.id, user))
         try:
             return await handler(event, data)
         finally:
+            _UPDATE_USER.reset(user_token)
             _CURRENT_LANGUAGE.reset(token)

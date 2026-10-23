@@ -16,6 +16,8 @@ def test_locales_have_matching_keys_and_valid_format_strings():
     assert set(locales) == {"ru", "uk", "en"}
     assert set(locales["ru"]) == set(locales["uk"]) == set(locales["en"])
     format_values = {
+        "average": "8.5", "votes": 12, "own": 9,
+        "ratings": 20, "reviews": 10, "pending": 2, "reports": 1, "warnings": 3,
         "language": "English",
         "language_name": "English",
         "url": "https://example.invalid",

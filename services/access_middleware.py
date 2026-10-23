@@ -2,7 +2,7 @@ from aiogram import BaseMiddleware
 from aiogram.types import CallbackQuery, InlineQuery, Message
 
 from database.repository import UserRepository
-from services.i18n import tr
+from services.i18n import tr, get_update_user
 
 
 class BlockedUserMiddleware(BaseMiddleware):
@@ -11,7 +11,7 @@ class BlockedUserMiddleware(BaseMiddleware):
         sender = getattr(nested, "from_user", None)
         if sender is None:
             return await handler(event, data)
-        user = await UserRepository().get_user_by_telegram_id(sender.id)
+        user = await get_update_user(sender.id)
         if not user or not user.is_blocked:
             return await handler(event, data)
         text = tr(user.language, "access_blocked")

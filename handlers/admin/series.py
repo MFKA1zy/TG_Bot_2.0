@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import html
 import logging
 from io import BytesIO
@@ -55,7 +57,7 @@ async def _upload_telegram_photo(bot: Bot, photo_file_id: str) -> str:
 
 
 async def _delete_admin_input(message: Message) -> None:
-    message_service.track_user_message(message.chat.id, message.message_id)
+    await asyncio.to_thread(message_service.track_user_message, message.chat.id, message.message_id)
     await message_service.safe_delete_user_message(
         message.bot,
         message.chat.id,
@@ -65,7 +67,7 @@ async def _delete_admin_input(message: Message) -> None:
 
 async def _answer_admin(message: Message, text: str, **kwargs) -> Message:
     response = await message.answer(text, **kwargs)
-    message_service.track_message(response.chat.id, response.message_id)
+    await asyncio.to_thread(message_service.track_message, response.chat.id, response.message_id)
     return response
 
 
@@ -110,7 +112,7 @@ async def _show_admin_series(
     callback: CallbackQuery, action: str, page: int = 0
 ) -> None:
     try:
-        items = series_service.list_series()
+        items = await asyncio.to_thread(series_service.list_series)
     except CatalogError:
         logger.exception("Unable to read the catalog for admin actions.")
         await replace_with_text(
@@ -241,7 +243,7 @@ async def receive_add_series_photo(message: Message, state: FSMContext) -> None:
         caption=_add_series_preview(data),
         reply_markup=build_admin_confirmation("admin_confirm_save"),
     )
-    message_service.track_message(response.chat.id, response.message_id)
+    await asyncio.to_thread(message_service.track_message, response.chat.id, response.message_id)
     await _delete_admin_input(message)
 
 
@@ -329,12 +331,7 @@ async def admin_confirm_save(
     try:
         if not title or not url:
             raise ValueError("Данные сериала неполные.")
-        item = series_service.add_series(
-            str(title),
-            str(url),
-            photo_file_id=data.get("photo_file_id"),
-            photo_url=photo_url,
-        )
+        item = await asyncio.to_thread(series_service.add_series, str(title), str(url), photo_file_id=data.get("photo_file_id"), photo_url=photo_url)
     except (ValueError, CatalogError) as exc:
         logger.info("Series save rejected: %s", exc)
         await replace_with_text(
@@ -408,7 +405,7 @@ async def admin_series_info(callback: CallbackQuery) -> None:
     await callback.answer()
     try:
         series_id = int(callback.data.split(":", 1)[1])
-        item = series_service.get_series_by_id(series_id)
+        item = await asyncio.to_thread(series_service.get_series_by_id, series_id)
     except (ValueError, CatalogError):
         logger.exception("Unable to load selected series details.")
         await replace_with_text(
@@ -443,7 +440,7 @@ async def admin_select_edit(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
     try:
         series_id = int(callback.data.split(":", 1)[1])
-        item = series_service.get_series_by_id(series_id)
+        item = await asyncio.to_thread(series_service.get_series_by_id, series_id)
     except (ValueError, CatalogError):
         logger.exception("Unable to select series for editing.")
         await replace_with_text(callback.message, tr(None, "series_open_error"))
@@ -475,7 +472,7 @@ async def begin_edit_title(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
     try:
         series_id = int(callback.data.split(":", 1)[1])
-        item = series_service.get_series_by_id(series_id)
+        item = await asyncio.to_thread(series_service.get_series_by_id, series_id)
     except (ValueError, CatalogError):
         logger.exception("Unable to open series title editor.")
         await replace_with_text(callback.message, tr(None, "series_open_error"))
@@ -500,7 +497,7 @@ async def begin_edit_url(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
     try:
         series_id = int(callback.data.split(":", 1)[1])
-        item = series_service.get_series_by_id(series_id)
+        item = await asyncio.to_thread(series_service.get_series_by_id, series_id)
     except (ValueError, CatalogError):
         logger.exception("Unable to open series URL editor.")
         await replace_with_text(callback.message, tr(None, "series_open_error"))
@@ -527,7 +524,7 @@ async def begin_edit_photo(
     await callback.answer()
     try:
         series_id = int(callback.data.split(":", 1)[1])
-        item = series_service.get_series_by_id(series_id)
+        item = await asyncio.to_thread(series_service.get_series_by_id, series_id)
     except (ValueError, CatalogError):
         logger.exception("Unable to open series photo editor.")
         await edit_text_or_caption(callback.message, tr(None, "series_open_error"))
@@ -597,7 +594,7 @@ async def receive_edit_series_photo(
             prompt_message_id,
         )
     try:
-        item = series_service.get_series_by_id(int(data["series_id"]))
+        item = await asyncio.to_thread(series_service.get_series_by_id, int(data["series_id"]))
     except (TypeError, ValueError, CatalogError):
         logger.exception("Unable to load selected series photo target.")
         await state.clear()
@@ -623,7 +620,7 @@ async def receive_edit_series_photo(
         ),
         reply_markup=build_admin_confirmation("admin_confirm_photo_edit"),
     )
-    message_service.track_message(response.chat.id, response.message_id)
+    await asyncio.to_thread(message_service.track_message, response.chat.id, response.message_id)
     await _delete_admin_input(message)
 
 
@@ -679,11 +676,7 @@ async def confirm_edit_series_photo(
             return
         await state.update_data(photo_url=photo_url)
     try:
-        item = series_service.set_series_photo(
-            int(data["series_id"]),
-            str(data["photo_file_id"]),
-            str(photo_url),
-        )
+        item = await asyncio.to_thread(series_service.set_series_photo, int(data["series_id"]), str(data["photo_file_id"]), str(photo_url))
     except (KeyError, TypeError, ValueError, CatalogError) as exc:
         logger.exception("Could not update series photo.")
         await state.clear()
@@ -710,7 +703,7 @@ async def request_remove_series_photo(
     await callback.answer()
     try:
         series_id = int(callback.data.split(":", 1)[1])
-        item = series_service.get_series_by_id(series_id)
+        item = await asyncio.to_thread(series_service.get_series_by_id, series_id)
     except (ValueError, CatalogError):
         logger.exception("Unable to load series for photo removal.")
         await edit_text_or_caption(callback.message, tr(None, "series_open_error"))
@@ -761,7 +754,7 @@ async def confirm_remove_series_photo(
         )
         return
     try:
-        item = series_service.set_series_photo(series_id, None)
+        item = await asyncio.to_thread(series_service.set_series_photo, series_id, None)
     except (ValueError, CatalogError) as exc:
         logger.exception("Could not remove series photo.")
         await state.clear()
@@ -802,7 +795,7 @@ async def _preview_edit(message: Message, state: FSMContext, field: str) -> None
             )
             return
     try:
-        item = series_service.get_series_by_id(int(series_id))
+        item = await asyncio.to_thread(series_service.get_series_by_id, int(series_id))
     except (TypeError, ValueError, CatalogError):
         logger.exception("Unable to load series while preparing edit.")
         item = None
@@ -865,10 +858,7 @@ async def confirm_edit(callback: CallbackQuery, state: FSMContext) -> None:
     try:
         if field not in {"title", "tiktok_url"} or value is None:
             raise ValueError("Данные изменения неполные.")
-        item = series_service.edit_series(
-            int(data["series_id"]),
-            **{field: str(value)},
-        )
+        item = await asyncio.to_thread(series_service.edit_series, int(data["series_id"]), **{field: str(value)})
     except (KeyError, TypeError, ValueError, CatalogError) as exc:
         logger.info("Series edit rejected: %s", exc)
         await replace_with_text(
@@ -893,7 +883,7 @@ async def select_delete(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
     try:
         series_id = int(callback.data.split(":", 1)[1])
-        item = series_service.get_series_by_id(series_id)
+        item = await asyncio.to_thread(series_service.get_series_by_id, series_id)
     except (ValueError, CatalogError):
         logger.exception("Unable to select series for deletion.")
         await replace_with_text(callback.message, tr(None, "series_open_error"))
@@ -937,7 +927,7 @@ async def confirm_delete(callback: CallbackQuery, state: FSMContext) -> None:
         )
         return
     try:
-        deleted = series_service.delete_series(series_id)
+        deleted = await asyncio.to_thread(series_service.delete_series, series_id)
     except CatalogError:
         logger.exception("Unable to delete selected series.")
         deleted = False

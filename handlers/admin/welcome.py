@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import html
 import logging
 
@@ -52,7 +54,7 @@ async def _update_welcome_prompt(
         )
     else:
         response = await message.answer(text, reply_markup=reply_markup)
-        message_service.track_message(response.chat.id, response.message_id)
+        await asyncio.to_thread(message_service.track_message, response.chat.id, response.message_id)
     await state.update_data(active_prompt_message_id=response.message_id)
     return response
 
@@ -69,7 +71,7 @@ async def edit_welcome(callback: CallbackQuery, state: FSMContext) -> None:
         tr(language, "admin_select_language_welcome"),
         reply_markup=build_welcome_language_menu(language),
     )
-    message_service.track_message(response.chat.id, response.message_id)
+    await asyncio.to_thread(message_service.track_message, response.chat.id, response.message_id)
 
 
 @router.callback_query(F.data.startswith("admin_welcome_lang:"))
@@ -85,7 +87,7 @@ async def select_welcome_language(
     await callback.answer()
     language = await _admin_language(callback)
     try:
-        text = get_welcome_text(selected_language)
+        text = await asyncio.to_thread(get_welcome_text, selected_language)
     except SettingsFileError:
         logger.exception("Unable to read configured welcome text.")
         await replace_with_text(
@@ -116,7 +118,7 @@ async def preview_welcome(message: Message, state: FSMContext) -> None:
         return
     language = await _admin_language(message)
     new_text = (message.text or "").strip()
-    message_service.track_user_message(message.chat.id, message.message_id)
+    await asyncio.to_thread(message_service.track_user_message, message.chat.id, message.message_id)
     await message_service.safe_delete_user_message(
         message.bot,
         message.chat.id,
@@ -170,7 +172,7 @@ async def confirm_welcome(callback: CallbackQuery, state: FSMContext) -> None:
         return
     try:
         welcome_language = (await state.get_data()).get("welcome_language")
-        save_welcome_text(text, welcome_language)
+        await asyncio.to_thread(save_welcome_text, text, welcome_language)
     except (SettingsFileError, ValueError):
         logger.exception("Unable to save configured welcome text.")
         await state.clear()

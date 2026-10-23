@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import html
 import logging
 
@@ -64,10 +66,10 @@ async def show_subscription_required(message: Message | CallbackQuery) -> None:
             text,
             reply_markup=markup,
         )
-        message_service.track_message(response.chat.id, response.message_id)
+        await asyncio.to_thread(message_service.track_message, response.chat.id, response.message_id)
         return
     response = await message.answer(text, reply_markup=markup)
-    message_service.track_message(response.chat.id, response.message_id)
+    await asyncio.to_thread(message_service.track_message, response.chat.id, response.message_id)
 
 
 async def show_welcome(message: Message | CallbackQuery) -> None:
@@ -84,7 +86,7 @@ async def show_welcome(message: Message | CallbackQuery) -> None:
             await message.answer(tr(language, "inline_captcha_required"), reply_markup=build_language_menu(language))
         return
     try:
-        text = html.escape(get_welcome_text(language)).replace(
+        text = html.escape(await asyncio.to_thread(get_welcome_text, language)).replace(
             "Series Search TV",
             "<b>Series Search TV</b>",
         )
@@ -106,16 +108,16 @@ async def show_welcome(message: Message | CallbackQuery) -> None:
             text,
             reply_markup=build_main_menu(language),
         )
-        message_service.track_message(response.chat.id, response.message_id)
+        await asyncio.to_thread(message_service.track_message, response.chat.id, response.message_id)
         return
     response = await message.answer(text, reply_markup=build_main_menu(language))
-    message_service.track_message(response.chat.id, response.message_id)
+    await asyncio.to_thread(message_service.track_message, response.chat.id, response.message_id)
 
 
 @router.message(F.chat.type == "private", CommandStart())
 async def command_start(message: Message, state: FSMContext) -> None:
     await state.clear()
-    message_service.track_user_message(message.chat.id, message.message_id)
+    await asyncio.to_thread(message_service.track_user_message, message.chat.id, message.message_id)
     await message_service.clear_chat(message.bot, message.chat.id)
     user = await repository.ensure_user(
         telegram_id=message.from_user.id,
@@ -183,7 +185,7 @@ async def user_settings(callback: CallbackQuery) -> None:
         ),
         reply_markup=build_settings_menu(language),
     )
-    message_service.track_message(response.chat.id, response.message_id)
+    await asyncio.to_thread(message_service.track_message, response.chat.id, response.message_id)
 
 
 @router.callback_query(F.data == "change_language")
@@ -196,7 +198,7 @@ async def change_language(callback: CallbackQuery) -> None:
         tr(language, "language_prompt"),
         reply_markup=build_language_menu(language),
     )
-    message_service.track_message(response.chat.id, response.message_id)
+    await asyncio.to_thread(message_service.track_message, response.chat.id, response.message_id)
 
 
 @router.callback_query(F.data == "check_subscription")
