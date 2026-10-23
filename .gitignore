@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.coverage
+
+# Виртуальные окружения
+.venv/
+.venv312/
+venv/
+
+# Секретные данные
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# База данных и резервные копии
+database/*.db
+database/*.db-*
+database/*.bak
+*.db-shm
+*.db-wal
+
+# Логи
+logs/
+*.log
+
+# Временные файлы
+data/.message_cleanup.json
+*.tmp
+
+# IDE
+.vscode/
+.idea/
+
+# Файлы системы
+.DS_Store
+Thumbs.db
