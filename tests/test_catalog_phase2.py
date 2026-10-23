@@ -138,6 +138,10 @@ async def test_public_pages_visibility_categories_new_recommended_favorites(tmp_
 @pytest.mark.asyncio
 async def test_views_unique_concurrent_persistent_and_trend_period(tmp_path):
     catalog = await make_catalog(tmp_path)
+    users=UserRepository(catalog.repository.db_path)
+    for user_id in (51,52):
+        await users.ensure_user(user_id,language="en")
+        await users.set_captcha_passed(user_id,True)
     first = catalog.series.add_series("First", URL)["id"]
     second = catalog.series.add_series("Second", URL)["id"]
     results = await asyncio.gather(*[catalog.confirm_view(51, first) for _ in range(8)])

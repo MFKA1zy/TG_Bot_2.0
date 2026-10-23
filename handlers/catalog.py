@@ -129,8 +129,12 @@ async def catalog_callback(callback: CallbackQuery) -> None:
             builder.adjust(1)
             await replace_with_text(callback.message, tr(language, "cat_view_notice"), reply_markup=builder.as_markup())
         elif action == "confirm":
-            await catalog.confirm_view(callback.from_user.id, int(parts[2]))
-            await card(callback, language, int(parts[2]), *context(parts, 3))
+            reward=await catalog.confirm_view_reward(callback.from_user.id,int(parts[2]))
+            section,page,category_id=context(parts,3)
+            builder=InlineKeyboardBuilder()
+            builder.button(text=tr(language,"back"),callback_data=f"cat:card:{parts[2]}:{section}:{page}:{category_id}")
+            key="pt_view_added" if reward.added else "pt_view_legacy" if reward.legacy else "pt_view_repeat"
+            await replace_with_text(callback.message,tr(language,key,amount=reward.amount,balance=reward.balance),reply_markup=builder.as_markup())
         elif action == "watch":
             item = await asyncio.to_thread(catalog.published, int(parts[2]))
             if not item:

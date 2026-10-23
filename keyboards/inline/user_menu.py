@@ -26,6 +26,7 @@ def build_main_menu(language: str | None = None) -> InlineKeyboardMarkup:
         callback_data="user_settings",
     )
     builder.button(text=tr(language, "cat_title"), callback_data="cat:home")
+    builder.button(text=tr(language,"pt_title"),callback_data="pf:home")
     builder.adjust(1)
     return builder.as_markup()
 

@@ -125,7 +125,7 @@ async def test_verified_user_receives_localized_welcome_and_inline_only_search(m
     text, = message.answer.await_args.args
     keyboard = message.answer.await_args.kwargs["reply_markup"]
     assert "Welcome" in text
-    assert len(keyboard.inline_keyboard) == 3
+    assert len(keyboard.inline_keyboard) == 4
     assert keyboard.inline_keyboard[2][0].callback_data == "cat:home"
     assert keyboard.inline_keyboard[0][0].switch_inline_query_current_chat == ""
     assert keyboard.inline_keyboard[1][0].callback_data == "user_settings"

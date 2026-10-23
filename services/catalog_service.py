@@ -72,9 +72,15 @@ class CatalogService:
         await self.repository.set_favorite(user_id, series_id, enabled)
 
     async def confirm_view(self, user_id: int, series_id: int) -> bool:
-        if not await asyncio.to_thread(self.published, series_id):
+        return (await self.confirm_view_reward(user_id,series_id)).added
+
+    async def confirm_view_reward(self,user_id:int,series_id:int):
+        from database.economy_repository import EconomyRepository
+
+        item=await asyncio.to_thread(self.published,series_id)
+        if not item:
             raise ValueError("Series unavailable")
-        return await self.repository.confirm_view(user_id, series_id)
+        return await EconomyRepository(self.repository.db_path).confirm_view(user_id,series_id,item["title"])
 
     async def edit_metadata(self, series_id: int, **values) -> dict:
         if "category_ids" in values:

@@ -95,13 +95,9 @@ class CatalogRepository:
             await db.commit()
 
     async def confirm_view(self, user_id: int, series_id: int) -> bool:
-        """Self-confirmation only; no points are awarded in this phase."""
-        async with aiosqlite.connect(self.db_path) as db:
-            cursor = await db.execute("INSERT OR IGNORE INTO confirmed_views VALUES (?, ?, ?)", (user_id, series_id, datetime.now(timezone.utc).isoformat()))
-            added = cursor.rowcount == 1
-            await cursor.close()
-            await db.commit()
-            return added
+        from database.economy_repository import EconomyRepository
+
+        return (await EconomyRepository(self.db_path).confirm_view(user_id,series_id)).added
 
     async def viewed_ids(self, user_id: int) -> set[int]:
         async with aiosqlite.connect(self.db_path) as db:

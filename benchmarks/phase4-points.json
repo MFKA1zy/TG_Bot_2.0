@@ -1,0 +1,23 @@
+{
+  "users": 1200,
+  "views": 12000,
+  "ledger_operations": 12000,
+  "repeats": 60,
+  "network": false,
+  "profile": {
+    "median_ms": 6.417,
+    "p95_ms": 10.497
+  },
+  "leaderboard_first_page": {
+    "median_ms": 7.773,
+    "p95_ms": 11.52
+  },
+  "leaderboard_last_page": {
+    "median_ms": 6.6,
+    "p95_ms": 10.484
+  },
+  "points_history": {
+    "median_ms": 5.578,
+    "p95_ms": 9.431
+  }
+}

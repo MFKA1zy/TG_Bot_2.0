@@ -17,6 +17,9 @@ import handlers.admin.panel as admin_panel
 import handlers.inline_search as inline
 import handlers.reviews as reviews_ui
 import handlers.admin.reviews as moderation_ui
+import handlers.profile as profile_ui
+import handlers.admin.economy as economy_ui
+from database.economy_repository import EconomyRepository
 from services.reviews_service import ReviewsService
 import database.repository as user_repository_module
 from database.repository import UserRepository
@@ -68,6 +71,10 @@ async def app(tmp_path, monkeypatch):
     review_service = ReviewsService(catalog)
     monkeypatch.setattr(reviews_ui, "service", review_service)
     monkeypatch.setattr(moderation_ui, "service", review_service)
+    points=EconomyRepository(catalog.repository.db_path)
+    monkeypatch.setattr(profile_ui,"economy",points)
+    monkeypatch.setattr(profile_ui,"catalog",catalog)
+    monkeypatch.setattr(economy_ui,"economy",points)
     subscription = AsyncMock(return_value=True)
     monkeypatch.setattr(ui, "has_active_subscription", subscription)
     monkeypatch.setattr("services.access_service.has_active_subscription", subscription)
@@ -83,9 +90,12 @@ async def app(tmp_path, monkeypatch):
     router.callback_query.register(admin_ui.admin_catalog_callback, F.data.startswith("acat:"))
     router.callback_query.register(reviews_ui.review_callback, F.data.startswith("rev:"))
     router.callback_query.register(moderation_ui.moderation_callback, F.data.startswith("mod:"))
+    router.callback_query.register(profile_ui.profile_callback,F.data.startswith("pf:"))
+    router.callback_query.register(economy_ui.economy_callback,F.data.startswith("ec:"))
     router.message.register(admin_ui.admin_catalog_input, admin_ui.CatalogAdminStates.input)
     router.message.register(reviews_ui.review_text, reviews_ui.ReviewStates.text)
     router.message.register(moderation_ui.moderation_input, moderation_ui.ModerationStates.input)
+    router.message.register(economy_ui.economy_input,economy_ui.EconomyStates.input)
     dp.include_router(router)
     counter = 0
 
