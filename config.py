@@ -7,7 +7,11 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent
-load_dotenv(BASE_DIR / ".env")
+# An explicitly selected environment must never fall back to production .env.
+_env_file = os.getenv("ENV_FILE")
+if _env_file and not Path(_env_file).is_file():
+    raise RuntimeError("ENV_FILE does not exist")
+load_dotenv(Path(_env_file) if _env_file else BASE_DIR / ".env")
 
 
 def _as_path(value: str | None, default: Path) -> Path:

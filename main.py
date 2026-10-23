@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from logging.handlers import RotatingFileHandler
 
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
-from aiogram.fsm.storage.memory import MemoryStorage
+from services.fsm_storage import PruningMemoryStorage
 from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.exceptions import TelegramAPIError, TelegramNetworkError
@@ -19,14 +20,25 @@ from services.access_middleware import BlockedUserMiddleware
 
 
 def configure_logging() -> None:
+    from services.logging_security import SecretFormatter
+
     settings.LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    handlers = [
+        RotatingFileHandler(settings.LOGS_DIR / "bot.log", maxBytes=5*1024*1024,
+                            backupCount=3, encoding="utf-8"),
+        logging.StreamHandler(),
+    ]
+    formatter = SecretFormatter(
+        "%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        secrets=(settings.BOT_TOKEN, settings.IMGBB_API_KEY,
+                 settings.ADMIN_ACTIVATION_CODE, settings.TELEGRAM_PROXY),
+    )
+    for handler in handlers:
+        handler.setFormatter(formatter)
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-        handlers=[
-            logging.FileHandler(settings.LOGS_DIR / "bot.log", encoding="utf-8"),
-            logging.StreamHandler(),
-        ],
+        handlers=handlers,
+        force=True,
     )
 
 
@@ -61,7 +73,7 @@ async def main() -> None:
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
         session=bot_session,
     )
-    dp = Dispatcher(storage=MemoryStorage())
+    dp = Dispatcher(storage=PruningMemoryStorage())
     dp.update.outer_middleware(LocaleMiddleware())
     dp.update.outer_middleware(BlockedUserMiddleware())
 
@@ -115,9 +127,18 @@ async def main() -> None:
     dp.include_router(roulette_router)
     dp.include_router(admin_router)
 
+    async def shutdown_workers():
+        import handlers.admin.broadcast as broadcast
+        from services.lifecycle import shutdown_workers as drain
+
+        await drain(dp,broadcast)
+
+    dp.shutdown.register(shutdown_workers)
+
     try:
-        await dp.start_polling(bot)
+        await dp.start_polling(bot, close_bot_session=False)
     finally:
+        await dp.storage.close()
         await bot.session.close()
 
 

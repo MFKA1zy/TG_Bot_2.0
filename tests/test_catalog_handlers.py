@@ -3,6 +3,10 @@ import html
 import re
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
+from aiogram.filters import CommandStart
+import handlers.start as start_ui
+import handlers.captcha as captcha_ui
+from states.captcha import CaptchaStates
 
 import pytest
 import pytest_asyncio
@@ -71,6 +75,8 @@ async def app(tmp_path, monkeypatch):
     monkeypatch.setattr(ui, "users", users)
     monkeypatch.setattr(admin_ui, "catalog", catalog)
     monkeypatch.setattr(admin_panel, "repository", users)
+    monkeypatch.setattr(start_ui,"repository",users)
+    monkeypatch.setattr(captcha_ui,"repository",users)
     review_service = ReviewsService(catalog)
     monkeypatch.setattr(reviews_ui, "service", review_service)
     monkeypatch.setattr(moderation_ui, "service", review_service)
@@ -85,6 +91,8 @@ async def app(tmp_path, monkeypatch):
     monkeypatch.setattr(ui, "has_active_subscription", subscription)
     monkeypatch.setattr("services.access_service.has_active_subscription", subscription)
     monkeypatch.setattr(message_service, "track_message", lambda *args: None)
+    monkeypatch.setattr(message_service, "track_user_message", lambda *args: None)
+    monkeypatch.setattr(message_service, "clear_chat", AsyncMock())
     monkeypatch.setattr(message_service, "safe_delete", AsyncMock())
     session = TelegramSession()
     bot = Bot("12345:TEST", session=session)
@@ -92,6 +100,11 @@ async def app(tmp_path, monkeypatch):
     dp.update.outer_middleware(LocaleMiddleware())
     dp.update.outer_middleware(BlockedUserMiddleware())
     router = Router()
+    router.message.register(start_ui.command_start,CommandStart())
+    router.callback_query.register(start_ui.set_language,F.data.startswith('set_language:'))
+    router.callback_query.register(start_ui.check_subscription,F.data=='check_subscription')
+    router.callback_query.register(start_ui.go_to_main_menu,F.data=='main_menu')
+    router.message.register(captcha_ui.process_captcha,CaptchaStates.waiting_for_answer)
     router.callback_query.register(ui.catalog_callback, F.data.startswith("cat:"))
     router.callback_query.register(admin_ui.admin_catalog_callback, F.data.startswith("acat:"))
     router.callback_query.register(reviews_ui.review_callback, F.data.startswith("rev:"))
@@ -123,7 +136,7 @@ async def app(tmp_path, monkeypatch):
         message = Message(message_id=counter + 10, date=datetime.now(timezone.utc), chat=Chat(id=51, type="private"), from_user=sender, text=value)
         await dp.feed_update(bot, Update(update_id=counter, message=message))
 
-    yield SimpleNamespace(catalog=catalog, users=users, session=session, callback=callback, text=text, subscription=subscription, bot=bot)
+    yield SimpleNamespace(catalog=catalog, users=users, session=session, callback=callback, text=text, subscription=subscription, bot=bot, dp=dp)
     await dp.storage.close()
     await bot.session.close()
 

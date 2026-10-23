@@ -1,4 +1,31 @@
-# Фаза 5 завершена— ежедневная рулетка (2026-10-24)
+# Фаза 6 — релиз-кандидат подготовлен (2026-10-24)
+
+Ветка `feature/release-candidate`, основа `a2ff3c6`. Добавлены изолированный
+staging launcher с ENV_FILE, общая маскировка секретов/traceback и ротация
+логов, завершение активных задач при shutdown, удаление пустых FSM-сессий,
+согласованный backup SQLite/JSON и preflight миграций только на копии.
+
+Полный pytest: **249 passed in 53.89s** (236 прежних + 13 новых проверок).
+Сквозной путь RU/UK/EN, inline после отписки, аварийный выход процесса до/после
+commit, rollback при отмене, WAL backup и 2000 очищенных FSM-сессий проверены.
+Компиляция, diff check и проверка секретов в Git успешны. Рабочая база не менялась.
+Нагрузочный замер: 1000 сериалов / 1200 пользователей / 12000 просмотров;
+медиана поиска 0,243 мс, карточки 15,594 мс, ack callback 0,684 мс.
+Точные median/p95: `benchmarks/phase6-release.json`.
+
+Дальнейшие действия владельца: отдельный тестовый токен/канал, живая проверка
+Telegram/ImgBB, настройки Railway Dashboard, экспорт фактической production-базы
+и preflight, проверенный внешний backup, явное одобрение конкретного commit.
+Live Telegram/Railway и production-export не проверялись. Подписка настраивается
+через env/Variables и рестарт; Telegram-редактора политики подписки нет.
+
+Отчёт: [FINAL_RELEASE_REPORT.md](FINAL_RELEASE_REPORT.md).
+Инструкции: [STAGING_TEST_PLAN.md](STAGING_TEST_PLAN.md),
+[RAILWAY_DEPLOY_GUIDE.md](RAILWAY_DEPLOY_GUIDE.md), [ROLLBACK_PLAN.md](ROLLBACK_PLAN.md).
+Push, merge, deploy, production-миграции и реальные рассылки не выполнялись.
+Ниже — история предыдущих фаз, а не текущие незавершённые задачи.
+
+# Фаза 5 завершена — ежедневная рулетка (2026-10-24)
 
 Ветка `feature/daily-roulette`, основа `3d599cd`. Добавлены бесплатные вращения
 раз в 24 часа UTC, призы с весами в SQLite, атомарные начисления через общий

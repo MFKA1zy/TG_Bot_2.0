@@ -19,6 +19,9 @@ from services.series_cards import render_card
 from services import access_service
 from types import SimpleNamespace
 from datetime import datetime, timezone
+from database.economy_repository import EconomyRepository
+from database.roulette_repository import RouletteRepository
+from database.reviews_repository import ReviewsRepository
 
 
 async def measure(action, repeats=40):
@@ -40,6 +43,15 @@ async def run():
         series = SeriesService(path)
         repo = CatalogRepository(db)
         catalog = CatalogService(series, repo)
+        economy = EconomyRepository(db)
+        roulette = RouletteRepository(db,randbelow=lambda n:75)
+        reviews = ReviewsRepository(db)
+        timestamp=datetime.now(timezone.utc).isoformat()
+        async with economy.connection(True) as connection:
+            await connection.executemany("INSERT INTO users(telegram_id,first_name,language,captcha_passed) VALUES (?,?,'en',1)",[(uid,f'User {uid}') for uid in range(1,1201)])
+            await connection.executemany("INSERT INTO ratings VALUES (?,?,8,?)",[(uid,uid%1000+1,timestamp) for uid in range(1,1201)])
+            await connection.executemany("INSERT INTO reviews(user_id,series_id,text,status,created_at,updated_at,published_at) VALUES (?,?,'Detailed synthetic review','published',?,?,?)",[(uid,uid%1000+1,timestamp,timestamp,timestamp) for uid in range(1,1201)])
+            await connection.executemany("INSERT INTO confirmed_views(user_id,series_id,confirmed_at,reward_eligible) VALUES (?,?,?,1)",[(uid,series_id,timestamp) for uid in range(1,1201) for series_id in range(1,11)])
         async def listing():
             await asyncio.to_thread(series.list_series)
         async def inline():
@@ -132,11 +144,24 @@ async def run():
             message_service.track_message = original_tracking
             await dp.storage.close()
             await bot.session.close()
-        return {"environment": "local Windows/Python; 1000 series; temporary SQLite; no Telegram network", "repeats": 40,
+        async def parallel_search():
+            await asyncio.gather(*[asyncio.to_thread(series.search_series,f'Series {i}') for i in range(1,33)])
+        spin_users=iter(range(100,140))
+        async def new_spin():
+            uid=next(spin_users)
+            await roulette.spin(uid,f'benchmark:{uid}')
+        return {"environment": "local Windows/Python; 1000 series; 1200 users; 12000 views; temporary SQLite; no Telegram network", "repeats": 40,
                 "catalog_read": await measure(listing), "inline_exact_search": await measure(inline),
                 "card_storage_render": await measure(card), "new_page": await measure(page),
                 "sqlite_view_counts": await measure(sqlite_counts), "subscription_synthetic": subscription,
-                "callback_dispatch_synthetic": callbacks}
+                "callback_dispatch_synthetic": callbacks,
+                "ratings":await measure(lambda:reviews.rating_summary(42,51)),
+                "public_reviews":await measure(lambda:reviews.public_reviews(42,0)),
+                "profile":await measure(lambda:economy.profile(51)),
+                "leaderboard":await measure(lambda:economy.leaderboard(51)),
+                "roulette_status":await measure(lambda:roulette.status(51)),
+                "roulette_atomic_spin":await measure(new_spin),
+                "parallel_search_batch_32":await measure(parallel_search,10)}
 
 
 if __name__ == "__main__":

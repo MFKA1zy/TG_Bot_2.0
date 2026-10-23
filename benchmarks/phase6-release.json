@@ -1,0 +1,64 @@
+{
+  "environment": "local Windows/Python; 1000 series; 1200 users; 12000 views; temporary SQLite; no Telegram network",
+  "repeats": 40,
+  "catalog_read": {
+    "median_ms": 5.859,
+    "p95_ms": 6.436
+  },
+  "inline_exact_search": {
+    "median_ms": 0.243,
+    "p95_ms": 0.381
+  },
+  "card_storage_render": {
+    "median_ms": 15.594,
+    "p95_ms": 16.599
+  },
+  "new_page": {
+    "median_ms": 8.623,
+    "p95_ms": 9.315
+  },
+  "sqlite_view_counts": {
+    "median_ms": 4.723,
+    "p95_ms": 5.24
+  },
+  "subscription_synthetic": {
+    "synthetic_rtt_ms": 10,
+    "simultaneous_checks": 16,
+    "api_requests": 1,
+    "batch_ms": 22.149
+  },
+  "callback_dispatch_synthetic": {
+    "median_ms": 46.664,
+    "p95_ms": 48.781,
+    "ack_median_ms": 0.684,
+    "subscription_synthetic_rtt_ms": 10
+  },
+  "ratings": {
+    "median_ms": 1.931,
+    "p95_ms": 2.567
+  },
+  "public_reviews": {
+    "median_ms": 2.214,
+    "p95_ms": 2.596
+  },
+  "profile": {
+    "median_ms": 2.307,
+    "p95_ms": 2.74
+  },
+  "leaderboard": {
+    "median_ms": 2.833,
+    "p95_ms": 3.6
+  },
+  "roulette_status": {
+    "median_ms": 2.024,
+    "p95_ms": 2.391
+  },
+  "roulette_atomic_spin": {
+    "median_ms": 10.319,
+    "p95_ms": 11.272
+  },
+  "parallel_search_batch_32": {
+    "median_ms": 6.23,
+    "p95_ms": 6.666
+  }
+}
