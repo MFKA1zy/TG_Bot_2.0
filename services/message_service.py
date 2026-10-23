@@ -19,7 +19,7 @@ class MessageService:
         self._tracking_path = Path(
             tracking_path
             if tracking_path is not None
-            else settings.BASE_DIR / "data" / ".message_cleanup.json"
+            else settings.DATA_DIR / ".message_cleanup.json"
         )
         self._lock = threading.RLock()
         self._tracked_messages: dict[int, set[int]] = {}

@@ -17,6 +17,8 @@ class UserRecord:
     created_at: str | None = None
     last_activity: str | None = None
     is_blocked: bool = False
+    is_subscribed: bool = False
+    subscription_checked_at: str | None = None
 
     @classmethod
     def from_row(cls, row: dict[str, Any]) -> "UserRecord":
@@ -31,6 +33,8 @@ class UserRecord:
             created_at=row.get("created_at"),
             last_activity=row.get("last_activity"),
             is_blocked=bool(row.get("is_blocked", 0)),
+            is_subscribed=bool(row.get("is_subscribed", 0)),
+            subscription_checked_at=row.get("subscription_checked_at"),
         )
 
     def as_dict(self) -> dict[str, Any]:
@@ -47,4 +51,6 @@ class UserRecord:
             "last_activity": self.last_activity
             or datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "is_blocked": int(self.is_blocked),
+            "is_subscribed": int(self.is_subscribed),
+            "subscription_checked_at": self.subscription_checked_at,
         }

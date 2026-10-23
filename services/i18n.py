@@ -48,7 +48,9 @@ def tr(language: str | None, key: str, **values: object) -> str:
 
 class LocaleMiddleware(BaseMiddleware):
     async def __call__(self, handler, event, data):
-        from_user = getattr(event, "from_user", None)
+        # Dispatcher update middleware receives Update, not its nested Message.
+        nested_event = event.event if getattr(event, "event_type", None) is not None else event
+        from_user = getattr(nested_event, "from_user", None)
         if from_user is None:
             return await handler(event, data)
         from database.repository import UserRepository

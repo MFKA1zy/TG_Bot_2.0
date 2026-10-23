@@ -9,12 +9,15 @@ from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     InlineQuery,
+    InlineQueryResultsButton,
     InlineQueryResult,
     InlineQueryResultArticle,
     InputTextMessageContent,
     LinkPreviewOptions,
 )
 
+from config import settings
+from services.access_service import has_active_subscription
 from database.repository import UserRepository
 from services.i18n import detect_language, normalize_language, tr
 from services.series_service import CatalogError, SeriesService
@@ -110,10 +113,23 @@ async def search_inline(inline_query: InlineQuery) -> None:
         else telegram_language
     )
 
-    if not user or not user.captcha_passed:
+    if user and getattr(user, "is_blocked", False):
+        await inline_query.answer(results=[], cache_time=0, is_personal=True)
+        return
+
+    if not user or not user.captcha_passed or not user.language:
         text = tr(language, "inline_captcha_required")
         await inline_query.answer(
-            results=[_info_result(text)],
+            results=[],
+            button=InlineQueryResultsButton(text=text[:64], start_parameter="register"),
+            cache_time=0,
+            is_personal=True,
+        )
+        return
+    if settings.SUBSCRIPTION_REQUIRED and not await has_active_subscription(inline_query.bot, inline_query.from_user.id):
+        await inline_query.answer(
+            results=[],
+            button=InlineQueryResultsButton(text=tr(language, "subscription_check")[:64], start_parameter="subscription"),
             cache_time=0,
             is_personal=True,
         )
@@ -128,7 +144,7 @@ async def search_inline(inline_query: InlineQuery) -> None:
         )
     except CatalogError:
         logger.exception("Series catalog could not be searched inline.")
-        await inline_query.answer(results=[], cache_time=0)
+        await inline_query.answer(results=[], cache_time=0, is_personal=True)
         return
 
     results = build_inline_results(items, language)

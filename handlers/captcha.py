@@ -50,14 +50,14 @@ async def start_captcha(message: Message, state: FSMContext) -> None:
         return
 
     await message_service.clear_chat(message.bot, message.chat.id)
-    user = await repository.get_user_by_telegram_id(message.from_user.id)
+    user = await repository.get_user_by_telegram_id(message.chat.id)
     language = normalize_language(user.language if user else None)
     if user and user.captcha_passed:
         await state.clear()
         await show_welcome(message)
         return
 
-    captcha_state = await repository.get_captcha_state(message.from_user.id)
+    captcha_state = await repository.get_captcha_state(message.chat.id)
     if _is_blocked(captcha_state.get("blocked_until")):
         await state.clear()
         await _send_and_track(
@@ -67,7 +67,7 @@ async def start_captcha(message: Message, state: FSMContext) -> None:
         )
         return
     if captcha_state.get("attempts", 0) >= 5:
-        await repository.reset_captcha_state(message.from_user.id)
+        await repository.reset_captcha_state(message.chat.id)
 
     challenge = captcha_service.get_challenge()
     if challenge is None:

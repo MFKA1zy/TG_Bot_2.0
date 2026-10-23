@@ -23,6 +23,9 @@ database/*.db-*
 database/*.bak
 *.db-shm
 *.db-wal
+*.db
+*.bak
+.local-backups/
 
 # Логи
 logs/

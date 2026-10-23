@@ -25,6 +25,9 @@
   "inline_poster": "Poster",
   "inline_button_tiktok": "▶️ Open on TikTok",
   "inline_captcha_required": "Open the bot and complete verification first.",
+  "subscription_required": "📣 Subscription to the channel is required to access the catalog and search. Subscribe and tap “Check subscription”.",
+  "subscription_join": "Subscribe to channel",
+  "subscription_check": "Check subscription",
   "admin_title": "🛠 <b>Administrator panel</b>",
   "admin_add_series": "🎬 Add series",
   "admin_catalog": "📚 Series catalog",
@@ -140,5 +143,6 @@
   "broadcast_recovered": "The unfinished broadcast was marked as interrupted. Recipients may have received only part of it; it was not sent again.",
   "broadcast_no_recovery": "There are no unfinished broadcasts.",
   "broadcast_cancel_requested": "Cancelling the send.",
-  "broadcast_not_running": "No broadcast is running."
+  "broadcast_not_running": "No broadcast is running.",
+  "access_blocked": "Access has been blocked by an administrator."
 }

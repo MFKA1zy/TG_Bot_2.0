@@ -46,15 +46,16 @@ class UserRepository:
                 """
                 INSERT INTO users (
                     telegram_id, username, first_name, last_name,
-                    is_admin, captcha_passed, language, created_at, last_activity, is_blocked
-                ) VALUES (?, ?, ?, ?, 0, 0, ?, ?, ?, 0)
+                    is_admin, captcha_passed, language, created_at, last_activity,
+                    is_blocked, is_subscribed, subscription_checked_at
+                ) VALUES (?, ?, ?, ?, 0, 0, ?, ?, ?, 0, 0, ?)
                 ON CONFLICT(telegram_id) DO UPDATE SET
                     username = excluded.username,
                     first_name = excluded.first_name,
                     last_name = excluded.last_name,
                     last_activity = excluded.last_activity
                 """,
-                (telegram_id, username, first_name, last_name, language, now, now),
+                (telegram_id, username, first_name, last_name, language, now, now, now),
             )
             await db.commit()
             cursor = await db.execute(
@@ -104,6 +105,38 @@ class UserRepository:
                 (language, _serialize_datetime(_utc_now()), telegram_id),
             )
             await db.commit()
+
+    async def set_subscription_status(
+        self,
+        telegram_id: int,
+        subscribed: bool,
+        *,
+        checked_at: str | None = None,
+    ) -> None:
+        now = checked_at or _serialize_datetime(_utc_now())
+        async with aiosqlite.connect(self.db_path) as db:
+            await _execute(
+                db,
+                """
+                UPDATE users
+                SET is_subscribed = ?, subscription_checked_at = ?, last_activity = ?
+                WHERE telegram_id = ?
+                """,
+                (int(subscribed), now, _serialize_datetime(_utc_now()), telegram_id),
+            )
+            await db.commit()
+
+    async def get_subscription_status(self, telegram_id: int) -> bool:
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                "SELECT is_subscribed FROM users WHERE telegram_id = ?",
+                (telegram_id,),
+            )
+            row = await cursor.fetchone()
+            await cursor.close()
+        if row is None:
+            return False
+        return bool(row[0])
 
     async def update_last_activity(self, telegram_id: int) -> None:
         async with aiosqlite.connect(self.db_path) as db:

@@ -36,6 +36,13 @@ async def init_db(db_path: str | Path | None = None) -> None:
     database_path = Path(db_path or settings.DB_PATH)
     database_path.parent.mkdir(parents=True, exist_ok=True)
     async with aiosqlite.connect(database_path) as db:
+        cursor = await db.execute("PRAGMA table_info(users)")
+        existing_user_columns = {row[1] for row in await cursor.fetchall()}
+        await cursor.close()
+        if existing_user_columns and not {
+            "language", "is_subscribed", "subscription_checked_at"
+        }.issubset(existing_user_columns):
+            await _backup_database(db, database_path)
         cursor = await db.execute(
             "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'broadcast_history'"
         )
@@ -66,7 +73,9 @@ async def init_db(db_path: str | Path | None = None) -> None:
                 language TEXT,
                 created_at TEXT,
                 last_activity TEXT,
-                is_blocked INTEGER DEFAULT 0
+                is_blocked INTEGER DEFAULT 0,
+                is_subscribed INTEGER DEFAULT 0,
+                subscription_checked_at TEXT
             )
             """
         )
@@ -75,6 +84,16 @@ async def init_db(db_path: str | Path | None = None) -> None:
         await cursor.close()
         if "language" not in user_columns:
             await _execute(db, "ALTER TABLE users ADD COLUMN language TEXT")
+        if "is_subscribed" not in user_columns:
+            await _execute(
+                db,
+                "ALTER TABLE users ADD COLUMN is_subscribed INTEGER DEFAULT 0",
+            )
+        if "subscription_checked_at" not in user_columns:
+            await _execute(
+                db,
+                "ALTER TABLE users ADD COLUMN subscription_checked_at TEXT",
+            )
         await _execute(
             db,
             """

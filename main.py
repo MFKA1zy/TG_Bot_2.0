@@ -13,12 +13,9 @@ from aiogram.types import ErrorEvent
 
 from config import settings
 from database.connection import init_db
-from handlers import captcha as captcha_handlers
-from handlers import inline_search as inline_search_handlers
-from handlers import start as start_handlers
-from handlers.admin import admin_router
 from services.i18n import LocaleMiddleware
 from services.i18n import tr
+from services.access_middleware import BlockedUserMiddleware
 
 
 def configure_logging() -> None:
@@ -34,6 +31,14 @@ def configure_logging() -> None:
 
 
 async def main() -> None:
+    from services.storage import prepare_storage
+
+    prepare_storage()
+    from handlers import captcha as captcha_handlers
+    from handlers import inline_search as inline_search_handlers
+    from handlers import start as start_handlers
+    from handlers.admin import admin_router
+
     configure_logging()
     if not settings.BOT_TOKEN:
         raise RuntimeError("BOT_TOKEN is missing. Fill in the .env file before starting the bot.")
@@ -51,6 +56,7 @@ async def main() -> None:
     )
     dp = Dispatcher(storage=MemoryStorage())
     dp.update.outer_middleware(LocaleMiddleware())
+    dp.update.outer_middleware(BlockedUserMiddleware())
 
     @dp.errors()
     async def handle_update_error(event: ErrorEvent) -> bool:

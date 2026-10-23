@@ -9,6 +9,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from urllib.parse import urlparse
 
+from config import settings
 from utils.text import normalize_query, normalize_text
 
 _CATALOG_LOCK = threading.RLock()
@@ -25,7 +26,7 @@ class SeriesService:
         self.catalog_path = (
             Path(catalog_path)
             if catalog_path
-            else Path(__file__).resolve().parent.parent / "data" / "series.json"
+            else settings.SERIES_PATH
         )
         self._lock = _CATALOG_LOCK
         self._ensure_catalog()
