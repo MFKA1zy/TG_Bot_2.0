@@ -16,6 +16,7 @@ def test_locales_have_matching_keys_and_valid_format_strings():
     assert set(locales) == {"ru", "uk", "en"}
     assert set(locales["ru"]) == set(locales["uk"]) == set(locales["en"])
     format_values = {
+        "hours":24,"minutes":0,"seconds":0,"available":1,"time":"24 h","last":10,"spins":2,
         "name":"Name","username":"@user","date":"2026-10-24","balance":100,"earned":120,"spent":20,
         "watched":3,"favorites":2,"rank":1,"points":100,"operations":5,"credited":120,"debited":20,
         "users":2,"views":4,"amount":10,

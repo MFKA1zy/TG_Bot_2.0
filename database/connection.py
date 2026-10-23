@@ -49,8 +49,12 @@ async def init_db(db_path: str | Path | None = None) -> None:
         if has_versions:
             async with db.execute("SELECT 1 FROM schema_migrations WHERE version=4") as cursor:
                 phase4_installed = await cursor.fetchone() is not None
+        phase5_installed = False
+        if has_versions:
+            async with db.execute("SELECT 1 FROM schema_migrations WHERE version=5") as cursor:
+                phase5_installed=await cursor.fetchone() is not None
         backup_taken = False
-        if existing_user_columns and (not phase3_installed or not phase4_installed or not {
+        if existing_user_columns and (not phase3_installed or not phase4_installed or not phase5_installed or not {
             "language", "is_subscribed", "subscription_checked_at", "delivery_blocked"
         }.issubset(existing_user_columns)):
             await _backup_database(db, database_path)
@@ -176,3 +180,6 @@ async def init_db(db_path: str | Path | None = None) -> None:
 
         await create_economy_tables(db)
         await db.commit()
+        from database.roulette_schema import create_roulette_tables
+
+        await create_roulette_tables(db)

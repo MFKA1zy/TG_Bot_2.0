@@ -26,8 +26,8 @@ class ReviewsRepository:
         self.db_path = str(db_path or settings.DB_PATH)
 
     @asynccontextmanager
-    async def connection(self, write=False):
-        async with aiosqlite.connect(self.db_path, timeout=10) as db:
+    async def connection(self, write=False, timeout=10):
+        async with aiosqlite.connect(self.db_path, timeout=timeout) as db:
             db.row_factory = aiosqlite.Row
             await db.execute("PRAGMA foreign_keys=ON")
             if write:

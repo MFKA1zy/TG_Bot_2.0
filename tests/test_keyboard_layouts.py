@@ -12,7 +12,7 @@ from keyboards.inline.user_menu import (
 def test_admin_menu_buttons_are_one_per_row():
     keyboard = build_admin_menu()
 
-    assert len(keyboard.inline_keyboard) == 12
+    assert len(keyboard.inline_keyboard) == 13
     assert all(len(row) == 1 for row in keyboard.inline_keyboard)
     assert [row[0].callback_data for row in keyboard.inline_keyboard] == [
         "admin_add_series",
@@ -26,6 +26,7 @@ def test_admin_menu_buttons_are_one_per_row():
         "acat:trend",
         "mod:home",
         "ec:home",
+        "ra:home",
         "main_menu",
     ]
 
@@ -33,7 +34,7 @@ def test_admin_menu_buttons_are_one_per_row():
 def test_main_menu_exposes_inline_search():
     keyboard = build_main_menu()
 
-    assert len(keyboard.inline_keyboard) == 4
+    assert len(keyboard.inline_keyboard) == 5
     assert keyboard.inline_keyboard[0][0].text == "🔎 Поиск"
     assert keyboard.inline_keyboard[0][0].switch_inline_query_current_chat == ""
     assert keyboard.inline_keyboard[1][0].callback_data == "user_settings"

@@ -47,6 +47,7 @@ async def main() -> None:
     from handlers.catalog import router as catalog_router
     from handlers.reviews import router as reviews_router
     from handlers.profile import router as profile_router
+    from handlers.roulette import router as roulette_router
 
     configure_logging()
     await init_db()
@@ -111,6 +112,7 @@ async def main() -> None:
     dp.include_router(catalog_router)
     dp.include_router(reviews_router)
     dp.include_router(profile_router)
+    dp.include_router(roulette_router)
     dp.include_router(admin_router)
 
     try:

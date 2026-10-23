@@ -61,7 +61,7 @@ class EconomyRepository(ReviewsRepository):
     async def _post(db, user_id, operation, amount, reason, key, actor=None, series_id=None, title=None):
         if type(amount) is not int or abs(amount) > 1000000000 or not key or not 1 <= len(reason) <= 500:
             raise EconomyError("invalid")
-        if operation in {"view","roulette","admin_credit"} and amount<0 or operation=="admin_debit" and amount>=0:
+        if operation in {"view","roulette","roulette_reward","admin_credit"} and amount<0 or operation=="admin_debit" and amount>=0:
             raise EconomyError("invalid")
         previous = await ReviewsRepository.one(db, "SELECT * FROM points_ledger WHERE idempotency_key=?", (key,))
         if previous:

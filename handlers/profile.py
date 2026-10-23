@@ -40,7 +40,7 @@ async def show_leaderboard(message,user_id,language,page=0,back="pf:home",reposi
 def history_text(rows,language):
     text=tr(language,"pt_history")+"\n\n"
     for row in rows:
-        reason=tr(language,"pt_reason_"+row["reason"]) if row["reason"] in {"view","legacy_view"} else row["reason"]
+        reason=tr(language,"pt_reason_"+row["reason"]) if row["reason"] in {"view","legacy_view","roulette"} else row["reason"]
         text+=f"#{row['id']} · {row['created_at'][:10]} · {row['amount']:+d} · {tr(language,'pt_op_'+row['operation'])}\n{html.escape(reason[:100])}"
         if row["series_id"] is not None:
             text+=f" · #{row['series_id']} {html.escape((row['series_title'] or '')[:70])}"
@@ -61,10 +61,16 @@ async def profile_callback(callback:CallbackQuery,state:FSMContext):
         if action=="home":
             user=await economy.profile(callback.from_user.id)
             text=tr(language,"pt_profile",name=html.escape((" ".join(filter(None,[user["first_name"],user["last_name"]])) or "—")[:100]),username=html.escape("@"+user["username"] if user["username"] else "—"),date=(user["created_at"] or "—")[:10],balance=user["points_balance"],earned=user["points_earned"],spent=user["points_spent"],watched=user["watched"],ratings=user["ratings"],reviews=user["reviews"],favorites=user["favorites"],rank=user["rank"] or "—")
+            from handlers.roulette import roulette,time_text
+
+            status=await roulette.status(callback.from_user.id)
+            text+="\n\n"+tr(language,"rl_profile",spins=status["spins"],points=status["winnings"],last=status["last_prize"] if status["last_prize"] is not None else "—",time=time_text(language,status["remaining"]))
             for section in ("watched","favorites","ratings","reviews"):
                 builder.button(text=tr(language,"pt_"+section),callback_data=f"pf:items:{section}:0")
             builder.button(text=tr(language,"pt_history"),callback_data="pf:history:0")
             builder.button(text=tr(language,"pt_leaders"),callback_data="pf:leaders:0")
+            builder.button(text=tr(language,"rl_title"),callback_data="rr:home")
+            builder.button(text=tr(language,"rl_history"),callback_data="rr:history:0")
             builder.button(text=tr(language,"back"),callback_data="main_menu")
         elif action=="leaders":
             await show_leaderboard(callback.message,callback.from_user.id,language,int(parts[2]))

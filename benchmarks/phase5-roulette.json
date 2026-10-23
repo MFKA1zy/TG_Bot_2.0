@@ -1,0 +1,35 @@
+{
+  "users": 1260,
+  "initial_spins": 12000,
+  "repeats": 60,
+  "network": false,
+  "baseline_without_history_index": {
+    "status": {
+      "median_ms": 3.655,
+      "p95_ms": 4.129
+    },
+    "history": {
+      "median_ms": 3.144,
+      "p95_ms": 3.822
+    }
+  },
+  "with_history_index": {
+    "status": {
+      "median_ms": 1.951,
+      "p95_ms": 2.447
+    },
+    "history": {
+      "median_ms": 2.318,
+      "p95_ms": 4.326
+    }
+  },
+  "atomic_new_spin": {
+    "median_ms": 18.592,
+    "p95_ms": 43.445
+  },
+  "idempotent_replay": {
+    "median_ms": 6.286,
+    "p95_ms": 15.444
+  },
+  "notes": "Repository wall-clock timings include connection and transaction costs; exclude Telegram latency and 150ms animation."
+}

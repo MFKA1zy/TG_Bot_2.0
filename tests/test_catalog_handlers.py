@@ -19,6 +19,9 @@ import handlers.reviews as reviews_ui
 import handlers.admin.reviews as moderation_ui
 import handlers.profile as profile_ui
 import handlers.admin.economy as economy_ui
+import handlers.roulette as roulette_ui
+import handlers.admin.roulette as roulette_admin_ui
+from database.roulette_repository import RouletteRepository
 from database.economy_repository import EconomyRepository
 from services.reviews_service import ReviewsService
 import database.repository as user_repository_module
@@ -75,6 +78,9 @@ async def app(tmp_path, monkeypatch):
     monkeypatch.setattr(profile_ui,"economy",points)
     monkeypatch.setattr(profile_ui,"catalog",catalog)
     monkeypatch.setattr(economy_ui,"economy",points)
+    roulette=RouletteRepository(users.db_path)
+    monkeypatch.setattr(roulette_ui,"roulette",roulette)
+    monkeypatch.setattr(roulette_admin_ui,"roulette",roulette)
     subscription = AsyncMock(return_value=True)
     monkeypatch.setattr(ui, "has_active_subscription", subscription)
     monkeypatch.setattr("services.access_service.has_active_subscription", subscription)
@@ -92,10 +98,13 @@ async def app(tmp_path, monkeypatch):
     router.callback_query.register(moderation_ui.moderation_callback, F.data.startswith("mod:"))
     router.callback_query.register(profile_ui.profile_callback,F.data.startswith("pf:"))
     router.callback_query.register(economy_ui.economy_callback,F.data.startswith("ec:"))
+    router.callback_query.register(roulette_ui.roulette_callback,F.data.startswith("rr:"))
+    router.callback_query.register(roulette_admin_ui.admin_roulette_callback,F.data.startswith("ra:"))
     router.message.register(admin_ui.admin_catalog_input, admin_ui.CatalogAdminStates.input)
     router.message.register(reviews_ui.review_text, reviews_ui.ReviewStates.text)
     router.message.register(moderation_ui.moderation_input, moderation_ui.ModerationStates.input)
     router.message.register(economy_ui.economy_input,economy_ui.EconomyStates.input)
+    router.message.register(roulette_admin_ui.admin_roulette_input,roulette_admin_ui.RouletteAdminStates.input)
     dp.include_router(router)
     counter = 0
 
