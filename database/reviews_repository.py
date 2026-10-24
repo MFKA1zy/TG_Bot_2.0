@@ -210,7 +210,7 @@ class ReviewsRepository:
                 (SELECT COUNT(*) FROM review_reports WHERE status='open') AS reports,
                 (SELECT COUNT(*) FROM user_warnings WHERE revoked_at IS NULL) AS warnings""")
 
-    async def admin_action(self, actor: int, action: str, target: int, reason: str, request_key: str, version: int = 0, extra: int = 0) -> None:
+    async def admin_action(self, actor: int, action: str, target: int, reason: str, request_key: str, version: int = 0, extra: int = 0) -> bool:
         if not 1 <= len(reason) <= 500:
             raise ReviewError("invalid")
         async with self.connection(True) as db:
@@ -218,7 +218,7 @@ class ReviewsRepository:
             if not admin or not admin["is_admin"] or admin["is_blocked"]:
                 raise ReviewError("access")
             if await self.one(db, "SELECT id FROM review_moderation_events WHERE request_key=?", (request_key,)):
-                return
+                return False
             subject, review_id = target, None
             if action in {"published", "rejected", "deleted"}:
                 row = await self.one(db, "SELECT * FROM reviews WHERE id=?", (target,))
@@ -266,6 +266,7 @@ class ReviewsRepository:
             else:
                 raise ReviewError("invalid")
             await self.event(db, actor, subject, review_id, action, reason, {"target": target, "version": version, "series_id": extra}, request_key)
+            return True
 
     @staticmethod
     async def _ban(db, actor, target, reason):

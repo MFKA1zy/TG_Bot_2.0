@@ -105,8 +105,10 @@ async def admin_catalog_callback(callback: CallbackQuery, state: FSMContext):
             back = "acat:categories:0" if "category" in action else "admin_panel"
             if action in {"editcategory", "deletecategory"}:
                 data["category_id"] = int(parts[2])
-                if not any(row["id"] == data["category_id"] for row in await catalog.repository.categories()):
+                category = next((row for row in await catalog.repository.categories() if row["id"] == data["category_id"]), None)
+                if category is None:
                     raise ValueError("category")
+                data["initial_position"] = category["position"]
             if action == "field":
                 series_id, field = int(parts[2]), parts[3]
                 if field not in FIELDS or not await asyncio.to_thread(catalog.series.get_series_by_id, series_id):
@@ -124,6 +126,8 @@ async def admin_catalog_callback(callback: CallbackQuery, state: FSMContext):
                 text = tr(None, "cat_delete_category_confirm")
             else:
                 text = tr(None, "cat_prompt_category")
+                if action == "editcategory":
+                    text += "\n\n" + html.escape(category["name"]) + f" | {category['position']}"
             data["back"] = back
             response = await replace_with_text(callback.message, text, reply_markup=controls(back, action == "deletecategory"))
             await state.set_data({**data, "prompt_id": response.message_id})
@@ -175,12 +179,24 @@ async def admin_catalog_input(message: Message, state: FSMContext):
             if not 1 <= data["value"] <= 365:
                 raise ValueError("trend")
         else:
-            name, position = text.rsplit("|", 1)
-            data.update(name=" ".join(name.split()), position=int(position.strip()))
+            if "|" in text:
+                name, position = text.rsplit("|", 1)
+                position = int(position.strip())
+            else:
+                name, position = text, data.get("initial_position", 0)
+            data.update(name=" ".join(name.split()), position=position)
             if not 1 <= len(data["name"]) <= 60 or not -100000 <= data["position"] <= 100000:
                 raise ValueError("category")
+            categories = await catalog.repository.categories()
+            if any(row["name"].casefold() == data["name"].casefold() and row["id"] != data.get("category_id") for row in categories):
+                await message.answer(tr(None, "cat_category_exists"), reply_markup=controls(data["back"]))
+                return
+            text = f"{data['name']} | {data['position']}"
     except (ValueError, KeyError, TypeError):
-        await message.answer(tr(None, "cat_invalid"), reply_markup=controls(data.get("back", "admin_panel")))
+        error = tr(None, "cat_invalid")
+        if data.get("kind") in {"addcategory", "editcategory"}:
+            error += "\n\n" + tr(None, "cat_prompt_category")
+        await message.answer(error, reply_markup=controls(data.get("back", "admin_panel")))
         return
     preview = html.escape(text[:1500])
     response = await message.answer(tr(None, "cat_confirm_changes") + "\n\n" + preview, reply_markup=controls(data["back"], True))

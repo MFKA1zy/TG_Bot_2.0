@@ -174,7 +174,7 @@
   "cat_delete_category_confirm": "Delete this category? Its series will be preserved.",
   "cat_trend_period": "Trending period",
   "cat_prompt_trend": "Enter the trending period in days: 1–365. Current value:",
-  "cat_prompt_category": "Enter name and order separated by |. Example: Comedy | 10",
+  "cat_prompt_category": "Enter a category name, for example: Comedy. Optionally set its order with |: Comedy | 10. Without a number, new categories use 0 and existing categories keep their order. A Save button will appear after input.",
   "cat_invalid": "Invalid data or expired button. Check the format and try again.",
   "cat_saved": "Changes saved.",
   "cat_confirm_changes": "Save these changes?",
@@ -364,5 +364,14 @@
   "rl_error_config": "Invalid prize or interval configuration.",
   "rl_error_stale": "Settings changed. Reopen this section.",
   "rl_error_busy": "Storage is busy. Please retry shortly.",
-  "rl_error_insufficient": "Operation unavailable."
+  "rl_error_insufficient": "Operation unavailable.",
+  "subscription_check_failed": "Subscription not confirmed. Join the channel and check again. If you already joined, contact the administrator: the bot may not have access to the channel.",
+  "subscription_not_configured": "Subscription checks are not configured yet. The administrator must specify a channel and add the bot to it.",
+  "rv_approval_reason": "Approved by moderator",
+  "rv_warning_received": "⚠️ Warning from the administrators\n\n{text}",
+  "rv_warning_delivered": "Warning sent to the user.",
+  "rv_warning_delivery_failed": "Warning saved, but the message could not be delivered. The user may have blocked the bot.",
+  "cat_category_exists": "A category with this name already exists. Enter another name.",
+  "series_optional_photo_hint": "Save the series now without a poster using Save, or send a photo for its poster.",
+  "series_title_too_long": "The title is too long. Enter up to 256 characters."
 }

@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import html
 import json
+import logging
+
+import aiosqlite
+from aiogram.exceptions import TelegramAPIError
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
@@ -18,6 +22,21 @@ from utils.telegram import replace_with_text
 
 router = Router()
 service = ReviewsService()
+logger = logging.getLogger(__name__)
+
+
+async def notify_warning(bot, user_id, reason):
+    try:
+        async with service.repository.connection() as db:
+            user = await service.repository.one(db, "SELECT language FROM users WHERE telegram_id=?", (user_id,))
+        await bot.send_message(
+            user_id, tr(user["language"] or "ru", "rv_warning_received", text=html.escape(reason)),
+            parse_mode="HTML",
+        )
+    except (TelegramAPIError, OSError, aiosqlite.Error) as exc:
+        logger.warning("Warning notification delivery failed (%s).", type(exc).__name__)
+        return False
+    return True
 
 
 class ModerationStates(StatesGroup):
@@ -65,6 +84,8 @@ async def show_review(callback, review_id):
     text = f"#{row['id']} · {html.escape(title[:200])}\n{html.escape(row['author'][:60])} · ID {row['user_id']}\n{tr(None, 'rv_admin_' + row['status'])}\n\n{html.escape(row['text'])}\n\n{html.escape('; '.join(reasons)[:400])}"
     builder = InlineKeyboardBuilder()
     for action in ("published", "rejected", "deleted"):
+        if action == "published" and row["status"] == "published":
+            continue
         builder.button(text=tr(None, "rv_action_" + action), callback_data=f"mod:act:{action}:{row['id']}:{row['version']}:0")
     builder.button(text=tr(None, "rv_author"), callback_data=f"mod:user:{row['user_id']}")
     builder.button(text=tr(None, "rv_series"), callback_data=f"cat:card:{row['series_id']}:all:0:0")
@@ -148,6 +169,15 @@ async def moderation_callback(callback: CallbackQuery, state: FSMContext):
                 if parts[2] not in {"published", "rejected", "deleted", "warn", "ban", "unban", "revoke", "dismiss", "rating_delete"}:
                     raise ReviewError("invalid")
                 data.update(action=parts[2], target=int(parts[3]), version=int(parts[4]), extra=int(parts[5]))
+                if data["action"] == "published":
+                    await service.admin_action(
+                        callback.from_user.id, "published", data["target"],
+                        tr(None, "rv_approval_reason"),
+                        f"approval:{callback.from_user.id}:{data['target']}:{data['version']}",
+                        data["version"], data["extra"],
+                    )
+                    await show_review(callback, data["target"])
+                    return
                 text = tr(None, "rv_moderator_reason")
             elif action == "setting":
                 if parts[2] not in {"auto_safe", "auto_ban", "forbidden_action", "warning_threshold", "min_votes", "review_cooldown"}:
@@ -164,8 +194,11 @@ async def moderation_callback(callback: CallbackQuery, state: FSMContext):
             if await state.get_state() != ModerationStates.confirm.state or data.get("prompt_id") != callback.message.message_id:
                 raise ReviewError("stale")
             kind = data["kind"]
+            notification = None
             if kind == "act":
-                await service.admin_action(callback.from_user.id, data["action"], data["target"], data["reason"], f"moderation:{callback.from_user.id}:{callback.message.chat.id}:{callback.message.message_id}", data["version"], data["extra"])
+                created = await service.admin_action(callback.from_user.id, data["action"], data["target"], data["reason"], f"moderation:{callback.from_user.id}:{callback.message.chat.id}:{callback.message.message_id}", data["version"], data["extra"])
+                if created and data["action"] == "warn":
+                    notification = (data["target"], data["reason"])
             elif kind == "setting":
                 await service.repository.configure(callback.from_user.id, {data["key"]: data["value"]})
             elif kind in {"wordadd", "wordremove"}:
@@ -173,7 +206,11 @@ async def moderation_callback(callback: CallbackQuery, state: FSMContext):
             else:
                 raise ReviewError("invalid")
             await state.clear()
-            await replace_with_text(callback.message, tr(None, "rv_saved"), reply_markup=controls())
+            text = tr(None, "rv_saved")
+            if notification:
+                delivered = await notify_warning(callback.bot, *notification)
+                text += "\n" + tr(None, "rv_warning_delivered" if delivered else "rv_warning_delivery_failed")
+            await replace_with_text(callback.message, text, reply_markup=controls())
         elif action == "settings":
             policy = await service.repository.policy()
             builder = InlineKeyboardBuilder()

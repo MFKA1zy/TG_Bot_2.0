@@ -1,9 +1,36 @@
 import pytest
+from aiogram.fsm.storage.base import StorageKey
 
 from tests.test_catalog_handlers import app
 from tests.test_catalog_phase2 import URL
+from services.i18n import tr
 import handlers.reviews as reviews_ui
 import handlers.admin.reviews as moderation_ui
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('language',['ru','uk','en'])
+async def test_one_click_approval_is_audited_idempotent_and_checks_role(app,language):
+    await app.users.set_language(51,language)
+    app.catalog.series.add_series('Series',URL)
+    row=await reviews_ui.service.submit(51,1,'A detailed review to approve','approve-once')
+    action=f"mod:act:published:{row['id']}:{row['version']}:0"
+    await app.callback(action)
+    assert (await reviews_ui.service.repository.review(row['id']))['status']=='pending'
+    await app.users.set_admin(51,True)
+    await app.callback(action)
+    published=await reviews_ui.service.repository.review(row['id'])
+    assert published['status']=='published' and published['version']==row['version']+1
+    buttons=[button for group in app.session.calls[-1].reply_markup.inline_keyboard for button in group]
+    assert not any((button.callback_data or '').startswith('mod:act:published:') for button in buttons)
+    assert not any(button.callback_data=='mod:commit' for button in buttons)
+    await app.callback(action)
+    assert (await reviews_ui.service.repository.review(row['id']))['version']==published['version']
+    async with reviews_ui.service.repository.connection() as db:
+        async with db.execute("SELECT * FROM review_moderation_events WHERE review_id=? AND action='published'",(row['id'],)) as cursor:
+            events=await cursor.fetchall()
+    assert len(events)==1 and events[0]['reason']==tr(language,'rv_approval_reason')
+    assert await app.dp.storage.get_state(StorageKey(bot_id=app.bot.id,chat_id=51,user_id=51)) is None
 
 
 @pytest.mark.asyncio
@@ -77,13 +104,10 @@ async def test_moderator_permission_stale_confirmation_and_version_check(app):
     await app.callback("mod:home")
     assert "administrator panel" in app.session.calls[-1].text
     await app.users.set_admin(51, True)
-    await app.callback(f"mod:act:published:{row['id']}:{row['version']}:0")
-    await app.text("Approve initial text")
-    prompt_id = len(app.session.calls) + 100
     async with reviews_ui.service.repository.connection(True) as db:
         await db.execute("DELETE FROM review_submission_limits")
     await reviews_ui.service.submit(51, 1, "A completely changed review", "second")
-    await app.callback("mod:commit", message_id=prompt_id)
+    await app.callback(f"mod:act:published:{row['id']}:{row['version']}:0")
     assert "data changed" in app.session.calls[-1].text
     assert (await reviews_ui.service.repository.review(row["id"]))["status"] == "pending"
 

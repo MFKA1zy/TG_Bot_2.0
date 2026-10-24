@@ -14,6 +14,7 @@ from services.access_service import authorize
 from services.i18n import tr
 from services.reviews_service import ReviewsService
 from utils.telegram import replace_with_text
+from keyboards.inline.navigation import add_navigation
 
 router = Router()
 service = ReviewsService()
@@ -25,7 +26,8 @@ class ReviewStates(StatesGroup):
 
 def navigation(series_id, suffix, language):
     builder = InlineKeyboardBuilder()
-    builder.button(text=tr(language, "back"), callback_data=f"rev:back:{series_id}:{suffix}")
+    add_navigation(builder, language, f"rev:back:{series_id}:{suffix}")
+    builder.adjust(1)
     return builder
 
 
@@ -109,7 +111,7 @@ async def review_callback(callback: CallbackQuery, state: FSMContext):
             if review_page + 1 < pages:
                 builder.button(text="›", callback_data=f"rev:list:{series_id}:{review_page + 1}:{suffix}")
             builder.button(text=tr(language, "rv_own"), callback_data=f"rev:own:{series_id}:{suffix}")
-            builder.button(text=tr(language, "back"), callback_data=f"rev:back:{series_id}:{suffix}")
+            add_navigation(builder, language, f"rev:back:{series_id}:{suffix}")
             builder.adjust(1)
             await replace_with_text(callback.message, text, reply_markup=builder.as_markup())
         elif action in {"report", "reason"}:
@@ -130,7 +132,7 @@ async def review_callback(callback: CallbackQuery, state: FSMContext):
     except (ReviewError, ValueError, KeyError, IndexError) as exc:
         code = str(exc) if isinstance(exc, ReviewError) else "invalid"
         builder = InlineKeyboardBuilder()
-        builder.button(text=tr(language, "back"), callback_data="cat:home")
+        add_navigation(builder, language, "cat:home")
         await replace_with_text(callback.message, tr(language, "rv_error_" + code), reply_markup=builder.as_markup())
 
 

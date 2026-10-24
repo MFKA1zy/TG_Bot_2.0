@@ -14,7 +14,6 @@ from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 from config import settings
 from handlers.admin.panel import ensure_admin
 from keyboards.inline.admin_menu import (
-    build_add_series_photo_prompt,
     build_admin_confirmation,
     build_admin_menu,
     build_admin_series_actions,
@@ -27,7 +26,7 @@ from keyboards.inline.admin_menu import (
 from services.image_hosting import ImageHostingError, upload_image_to_imgbb
 from services.i18n import tr
 from services.message_service import message_service
-from services.series_service import CatalogError, SeriesService
+from services.series_service import CatalogError, SeriesService, MAX_TITLE_LENGTH
 from states.admin import AdminStates
 from utils.telegram import (
     edit_text_or_caption,
@@ -155,22 +154,22 @@ async def admin_add_title(message: Message, state: FSMContext) -> None:
         await state.clear()
         return
     title = (message.text or "").strip()
-    if not title:
-        await _delete_admin_input(message)
+    if not title or len(title) > MAX_TITLE_LENGTH:
         await _update_admin_prompt(
             message,
             state,
-            tr(None, "series_empty_title"),
+            tr(None, "series_empty_title" if not title else "series_title_too_long"),
         )
+        await _delete_admin_input(message)
         return
     await state.update_data(title=title)
-    await _delete_admin_input(message)
     await _update_admin_prompt(
         message,
         state,
         tr(None, "series_enter_tiktok"),
     )
     await state.set_state(AdminStates.waiting_url)
+    await _delete_admin_input(message)
 
 
 @router.message(AdminStates.waiting_url)
@@ -182,12 +181,12 @@ async def admin_add_url(message: Message, state: FSMContext) -> None:
     try:
         SeriesService.validate_tiktok_url(url)
     except ValueError as exc:
-        await _delete_admin_input(message)
         await _update_admin_prompt(
             message,
             state,
             tr(None, "series_invalid_tiktok"),
         )
+        await _delete_admin_input(message)
         return
     data = await state.get_data()
     title = str(data.get("title", ""))
@@ -201,15 +200,15 @@ async def admin_add_url(message: Message, state: FSMContext) -> None:
         await state.clear()
         return
     await state.update_data(url=url)
-    await _delete_admin_input(message)
     await state.set_state(AdminStates.waiting_series_photo)
     prompt = await _update_admin_prompt(
         message,
         state,
-        tr(None, "series_add_photo_prompt"),
-        reply_markup=build_add_series_photo_prompt(),
+        _add_series_preview({**data, "url": url}) + "\n\n" + tr(None, "series_optional_photo_hint"),
+        reply_markup=build_admin_confirmation("admin_confirm_save"),
     )
-    await state.update_data(photo_prompt_message_id=prompt.message_id)
+    await state.update_data(photo_prompt_message_id=prompt.message_id, confirmation_prompt_message_id=prompt.message_id)
+    await _delete_admin_input(message)
 
 
 @router.message(AdminStates.waiting_series_photo, F.photo)
@@ -219,31 +218,36 @@ async def receive_add_series_photo(message: Message, state: FSMContext) -> None:
         return
     photo = message.photo[-1]
     if photo.file_size and photo.file_size > MAX_TELEGRAM_PHOTO_SIZE:
-        await _delete_admin_input(message)
         await _update_admin_prompt(
             message,
             state,
             tr(None, "series_photo_too_large"),
-            reply_markup=build_add_series_photo_prompt(),
+            reply_markup=build_admin_confirmation("admin_confirm_save"),
         )
+        await _delete_admin_input(message)
         return
     data = await state.get_data()
     prompt_message_id = data.get("photo_prompt_message_id")
-    if isinstance(prompt_message_id, int):
-        await message_service.safe_delete(
-            message.bot,
-            message.chat.id,
-            prompt_message_id,
-        )
     await state.update_data(photo_file_id=photo.file_id)
-    await state.set_state(AdminStates.waiting_confirmation)
     data = await state.get_data()
-    response = await message.answer_photo(
-        photo=photo.file_id,
-        caption=_add_series_preview(data),
-        reply_markup=build_admin_confirmation("admin_confirm_save"),
-    )
+    caption = _add_series_preview(data)
+    if len(caption.encode("utf-16-le")) > 2048:
+        caption = html.escape(str(data["title"])) + "\n\n" + tr(None, "series_imgbb_photo") + "\n" + tr(None, "cat_confirm_changes")
+    try:
+        response = await message.answer_photo(
+            photo=photo.file_id, caption=caption,
+            reply_markup=build_admin_confirmation("admin_confirm_save"),
+        )
+    except TelegramAPIError:
+        response = await _update_admin_prompt(
+            message, state, _add_series_preview(data),
+            reply_markup=build_admin_confirmation("admin_confirm_save"),
+        )
+    await state.set_state(AdminStates.waiting_confirmation)
+    await state.update_data(confirmation_prompt_message_id=response.message_id)
     await asyncio.to_thread(message_service.track_message, response.chat.id, response.message_id)
+    if isinstance(prompt_message_id, int) and prompt_message_id != response.message_id:
+        await message_service.safe_delete(message.bot, message.chat.id, prompt_message_id)
     await _delete_admin_input(message)
 
 
@@ -254,13 +258,13 @@ async def reject_non_photo_series_image(
     if not await ensure_admin(message):
         await state.clear()
         return
-    await _delete_admin_input(message)
     await _update_admin_prompt(
         message,
         state,
         tr(None, "series_photo_expected"),
-        reply_markup=build_add_series_photo_prompt(),
+        reply_markup=build_admin_confirmation("admin_confirm_save"),
     )
+    await _delete_admin_input(message)
 
 
 @router.callback_query(F.data == "admin_skip_series_photo")
@@ -288,11 +292,12 @@ async def skip_add_series_photo(
         return
     await state.update_data(photo_file_id=None)
     await state.set_state(AdminStates.waiting_confirmation)
-    await edit_text_or_caption(
+    response = await edit_text_or_caption(
         callback.message,
         _add_series_preview({**data, "photo_file_id": None}),
         reply_markup=build_admin_confirmation("admin_confirm_save"),
     )
+    await state.update_data(confirmation_prompt_message_id=response.message_id)
 
 
 @router.callback_query(F.data == "admin_confirm_save")
@@ -302,14 +307,14 @@ async def admin_confirm_save(
     if not await ensure_admin(callback):
         return
     await callback.answer()
-    if await state.get_state() != AdminStates.waiting_confirmation.state:
+    data = await state.get_data()
+    if await state.get_state() not in {AdminStates.waiting_confirmation.state, AdminStates.waiting_series_photo.state} or data.get("confirmation_prompt_message_id") != callback.message.message_id:
         await replace_with_text(
             callback.message,
             tr(None, "series_preview_stale"),
             reply_markup=build_admin_menu(),
         )
         return
-    data = await state.get_data()
     title = data.get("title")
     url = data.get("url")
     photo_url = data.get("photo_url")

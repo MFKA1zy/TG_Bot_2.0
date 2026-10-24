@@ -14,6 +14,7 @@ from services.i18n import normalize_language, tr
 from services.series_cards import show_card
 from services.series_service import CatalogError
 from utils.telegram import replace_with_text
+from keyboards.inline.navigation import add_navigation
 
 router = Router()
 catalog = CatalogService()
@@ -21,7 +22,7 @@ users = UserRepository()
 
 
 def back_button(builder, language, target="cat:home"):
-    builder.button(text=tr(language, "back"), callback_data=target)
+    add_navigation(builder, language, target)
 
 
 async def authorized(callback: CallbackQuery) -> str | None:

@@ -78,11 +78,6 @@ async def receive_broadcast_text(message: Message, state: FSMContext) -> None:
         return
     text = (message.text or "").strip()
     await asyncio.to_thread(message_service.track_user_message, message.chat.id, message.message_id)
-    await message_service.safe_delete_user_message(
-        message.bot,
-        message.chat.id,
-        message.message_id,
-    )
     if not text:
         response = await _update_broadcast_prompt(
             message,
@@ -111,6 +106,12 @@ async def receive_broadcast_text(message: Message, state: FSMContext) -> None:
         reply_markup=build_broadcast_confirmation(),
     )
     await state.set_state(AdminStates.waiting_broadcast_confirm)
+    # The preview must be visible before optional cleanup can wait on Telegram.
+    await message_service.safe_delete_user_message(
+        message.bot,
+        message.chat.id,
+        message.message_id,
+    )
 
 
 async def _run_broadcast(

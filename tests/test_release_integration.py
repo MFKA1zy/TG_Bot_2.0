@@ -80,8 +80,6 @@ async def test_complete_registration_catalog_reviews_economy_roulette_restart(ap
     assert row['status']=='pending'
     await app.users.set_admin(51,True)
     await app.callback(f"mod:act:published:{row['id']}:{row['version']}:0")
-    await app.text('Approved after inspection')
-    await app.callback('mod:commit',message_id=len(app.session.calls)+100)
     assert (await reviews.service.repository.review(row['id']))['status']=='published'
     await app.callback('pf:home')
     assert tr(language,'pt_history') in str(app.session.calls[-1].reply_markup)

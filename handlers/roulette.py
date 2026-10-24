@@ -14,6 +14,7 @@ from database.roulette_repository import RouletteRepository,RouletteError
 from services.access_service import authorize
 from services.i18n import tr
 from utils.telegram import replace_with_text
+from keyboards.inline.navigation import add_navigation
 
 router=Router()
 roulette=RouletteRepository()
@@ -30,7 +31,7 @@ def buttons(language,spin=False,back="main_menu"):
     if spin:
         builder.button(text=tr(language,"rl_spin"),callback_data="rr:spin")
     builder.button(text=tr(language,"rl_history"),callback_data="rr:history:0")
-    builder.button(text=tr(language,"back"),callback_data=back)
+    add_navigation(builder,language,back)
     builder.adjust(1)
     return builder.as_markup()
 
@@ -47,7 +48,7 @@ async def show_history(message,user_id,language,page=0,repository=None,prefix="r
         builder.button(text="‹",callback_data=f"{prefix}:{page-1}")
     if page+1<pages:
         builder.button(text="›",callback_data=f"{prefix}:{page+1}")
-    builder.button(text=tr(language,"back"),callback_data=back)
+    add_navigation(builder,language,back)
     builder.adjust(1)
     await replace_with_text(message,text,reply_markup=builder.as_markup())
 

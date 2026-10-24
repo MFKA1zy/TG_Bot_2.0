@@ -2,6 +2,7 @@ from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from services.i18n import SUPPORTED_LANGUAGES, tr
+from keyboards.inline.navigation import add_navigation
 
 
 def build_language_menu(language: str | None = None) -> InlineKeyboardMarkup:
@@ -38,6 +39,6 @@ def build_settings_menu(language: str | None = None) -> InlineKeyboardMarkup:
         text=tr(language, "change_language"),
         callback_data="change_language",
     )
-    builder.button(text=tr(language, "back"), callback_data="main_menu")
+    add_navigation(builder, language)
     builder.adjust(1)
     return builder.as_markup()

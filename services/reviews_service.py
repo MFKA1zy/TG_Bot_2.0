@@ -47,4 +47,4 @@ class ReviewsService:
             if not row:
                 raise ReviewError("missing")
             await self.require_series(row["series_id"])
-        await self.repository.admin_action(actor, action, target, reason, request_key, version, extra)
+        return await self.repository.admin_action(actor, action, target, reason, request_key, version, extra)

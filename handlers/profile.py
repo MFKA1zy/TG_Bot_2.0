@@ -13,6 +13,7 @@ from services.access_service import authorize
 from services.catalog_service import CatalogService
 from services.i18n import tr
 from utils.telegram import replace_with_text
+from keyboards.inline.navigation import add_navigation
 
 router=Router()
 economy=EconomyRepository()
@@ -32,7 +33,7 @@ async def show_leaderboard(message,user_id,language,page=0,back="pf:home",reposi
         builder.button(text="‹",callback_data=f"{prefix}:{page-1}")
     if page+1<pages:
         builder.button(text="›",callback_data=f"{prefix}:{page+1}")
-    builder.button(text=tr(language,"back"),callback_data=back)
+    add_navigation(builder,language,back)
     builder.adjust(1)
     await replace_with_text(message,text,reply_markup=builder.as_markup())
 
@@ -71,7 +72,7 @@ async def profile_callback(callback:CallbackQuery,state:FSMContext):
             builder.button(text=tr(language,"pt_leaders"),callback_data="pf:leaders:0")
             builder.button(text=tr(language,"rl_title"),callback_data="rr:home")
             builder.button(text=tr(language,"rl_history"),callback_data="rr:history:0")
-            builder.button(text=tr(language,"back"),callback_data="main_menu")
+            add_navigation(builder,language)
         elif action=="leaders":
             await show_leaderboard(callback.message,callback.from_user.id,language,int(parts[2]))
             return
@@ -82,7 +83,7 @@ async def profile_callback(callback:CallbackQuery,state:FSMContext):
                 builder.button(text="‹",callback_data=f"pf:history:{page-1}")
             if page+1<pages:
                 builder.button(text="›",callback_data=f"pf:history:{page+1}")
-            builder.button(text=tr(language,"back"),callback_data="pf:home")
+            add_navigation(builder,language,"pf:home")
         elif action=="items":
             section=parts[2]
             rows,page,pages=await economy.personal_items(callback.from_user.id,section,int(parts[3]))
@@ -102,7 +103,7 @@ async def profile_callback(callback:CallbackQuery,state:FSMContext):
                 builder.button(text="‹",callback_data=f"pf:items:{section}:{page-1}")
             if page+1<pages:
                 builder.button(text="›",callback_data=f"pf:items:{section}:{page+1}")
-            builder.button(text=tr(language,"back"),callback_data="pf:home")
+            add_navigation(builder,language,"pf:home")
         else:
             raise EconomyError("invalid")
         builder.adjust(1)
@@ -110,5 +111,5 @@ async def profile_callback(callback:CallbackQuery,state:FSMContext):
     except (ValueError,KeyError,IndexError) as exc:
         code=str(exc) if isinstance(exc,EconomyError) else "invalid"
         builder=InlineKeyboardBuilder()
-        builder.button(text=tr(language,"back"),callback_data="pf:home")
+        add_navigation(builder,language,"pf:home")
         await replace_with_text(callback.message,tr(language,"pt_error_"+code),reply_markup=builder.as_markup())

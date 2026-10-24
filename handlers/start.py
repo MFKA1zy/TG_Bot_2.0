@@ -208,7 +208,14 @@ async def check_subscription(callback: CallbackQuery, state: FSMContext) -> None
         return
     if settings.SUBSCRIPTION_REQUIRED and not await _user_has_active_subscription(callback.bot, callback.from_user.id):
         await state.clear()
-        await show_subscription_required(callback)
+        user = await repository.get_user_by_telegram_id(callback.from_user.id)
+        language = normalize_language(user.language if user else None)
+        key = "subscription_check_failed" if getattr(settings, "SUBSCRIPTION_CHANNEL_ID", None) else "subscription_not_configured"
+        response = await callback.message.answer(
+            tr(language, key),
+            reply_markup=_build_subscription_markup(language, url=settings.SUBSCRIPTION_CHANNEL_URL or None),
+        )
+        await asyncio.to_thread(message_service.track_message, response.chat.id, response.message_id)
         return
     await state.clear()
     await show_welcome(callback)
